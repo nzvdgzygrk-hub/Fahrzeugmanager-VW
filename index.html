@@ -145,6 +145,14 @@
       font-size: 12px;
       margin-top: 0;
     }
+
+    .dash-hint {
+      margin-top: 10px;
+      text-align: right;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.3;
+    }
   </style>
 </head>
 <body>
@@ -160,6 +168,14 @@
       <li><b>Letzte Reparaturkosten:</b> <span id="dashLastRepair">–</span></li>
       <li><b>Letzter Verbrauch:</b> <span id="dashFuel">–</span></li>
     </ul>
+    <div class="dash-hint">
+      Öl / Filter / Standard<br>
+      Ölwechsel – alle 30.000 km (30k / 60k / 90k / 120k ...)<br>
+      Innenraumfilter – alle 60.000 km<br>
+      Luftfilter – alle 90.000 km<br>
+      Kraftstofffilter (Diesel) – alle 90.000 km<br>
+      Schaltgetriebeöl – alle 60.000 km
+    </div>
   </div>
 
   <!-- FAHRZEUGDATEN -->
@@ -232,7 +248,7 @@
     <button onclick="exportWartungText()">Export Wartung (WhatsApp)</button>
   </div>
 
-  <!-- MONATSKOSTEN -->
+  <!-- MONATSKOSTEN WARTUNG -->
   <div class="box">
     <h2><span class="icon">📅</span>Reparaturkosten pro Monat</h2>
     <div id="repMonth"></div>
@@ -242,10 +258,7 @@
   <div class="box">
     <h2><span class="icon">⛽</span>Tanken &amp; Verbrauch</h2>
 
-    <label>Datum</label>
-    <input type="date" id="tankDate">
-
-    <label>Kilometer</label>
+    <label>Gefahrene Kilometer</label>
     <input type="number" id="tankKM">
 
     <label>Liter</label>
@@ -254,7 +267,7 @@
     <label>Preis pro Liter (€)</label>
     <input type="number" id="tankP" step="0.001">
 
-    <button onclick="addTank()">Tanken eintragen</button>
+    <button onclick="addTank()">Übernehmen</button>
 
     <table>
       <thead>
@@ -263,7 +276,15 @@
       <tbody id="tankList"></tbody>
     </table>
 
+    <button onclick="undoLastTank()">Letzten Tank-Eintrag löschen (Passwort)</button>
+    <br><br>
     <button onclick="exportTankText()">Export Tanken (WhatsApp)</button>
+  </div>
+
+  <!-- TANK-MONATSÜBERSICHT -->
+  <div class="box">
+    <h2><span class="icon">📅</span>Tankübersicht pro Monat</h2>
+    <div id="tankMonth"></div>
   </div>
 
   <script>
@@ -276,21 +297,21 @@
 
     // ===== Feste VW-Inspektionsdaten =====
     const fixedTasks = [
-      { id: "oil",   title: "Ölwechsel",          interval: 30000, presets: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
-      { id: "innen", title: "Innenraumfilter",    interval: 60000, presets: [60000, 120000, 180000, 240000] },
-      { id: "luft",  title: "Luftfilter",         interval: 90000, presets: [90000, 180000, 270000] },
-      { id: "diesel",title: "Kraftstofffilter",   interval: 90000, presets: [90000, 180000, 270000] },
-      { id: "gear",  title: "Schaltgetriebeöl",   interval: 60000, presets: [60000, 120000, 180000, 240000] },
-      { id: "brake", title: "Bremsflüssigkeit",   interval: 60000, presets: [60000, 120000, 180000, 240000] },
-      { id: "belt",  title: "Zahnriemen",         interval: 210000, presets: [210000] },
-      { id: "tens",  title: "Spannrolle Zahnriemen", interval: 210000, presets: [210000] },
-      { id: "dpf",   title: "Rußpartikelfilter (DPF)",  interval: 210000, presets: [210000] }
+      { id: "oil",   title: "Ölwechsel",              interval: 30000,  presets: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
+      { id: "innen", title: "Innenraumfilter",        interval: 60000,  presets: [60000, 120000, 180000, 240000] },
+      { id: "luft",  title: "Luftfilter",             interval: 90000,  presets: [90000, 180000, 270000] },
+      { id: "diesel",title: "Kraftstofffilter",       interval: 90000,  presets: [90000, 180000, 270000] },
+      { id: "gear",  title: "Schaltgetriebeöl",       interval: 60000,  presets: [60000, 120000, 180000, 240000] },
+      { id: "brake", title: "Bremsflüssigkeit",       interval: 60000,  presets: [60000, 120000, 180000, 240000] },
+      { id: "belt",  title: "Zahnriemen",             interval: 210000, presets: [210000] },
+      { id: "tens",  title: "Spannrolle Zahnriemen",  interval: 210000, presets: [210000] },
+      { id: "dpf",   title: "Rußpartikelfilter (DPF)",interval: 210000, presets: [210000] }
     ];
 
     // flache Liste aller festen Einträge, sortiert nach km
     const fixedEntries = [];
-    fixedTasks.forEach(task => {
-      task.presets.forEach((preset, idx) => {
+    fixedTasks.forEach(function(task) {
+      task.presets.forEach(function(preset, idx) {
         if (typeof preset === "number") {
           fixedEntries.push({
             key: task.id + "_" + idx,
@@ -302,14 +323,14 @@
         }
       });
     });
-    fixedEntries.sort((a, b) => a.baseKm - b.baseKm);
+    fixedEntries.sort(function(a, b) { return a.baseKm - b.baseKm; });
 
     // ===== fixe Wartung (Liste) rendern =====
     function renderInspectionList() {
       const box = document.getElementById("inspectionList");
       box.innerHTML = "";
 
-      fixedEntries.forEach(entry => {
+      fixedEntries.forEach(function(entry) {
         const div = document.createElement("div");
         div.className = "task-block";
 
@@ -426,7 +447,7 @@
     // ===== Wartungshistorie speichern =====
     function addHistory(task, km, date, cost) {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      list.push({ task, km, date, cost });
+      list.push({ task: task, km: km, date: date, cost: cost });
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
       renderMonthly();
@@ -440,38 +461,55 @@
       renderHistory();
     }
 
-    // ===== Wartungshistorie anzeigen =====
+    // ===== Wartungshistorie anzeigen (Datum editierbar) =====
     function renderHistory() {
-      let list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      const raw = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      let list = raw.map(function(e, idx) {
+        return { task: e.task, km: e.km, date: e.date || "", cost: e.cost, _idx: idx };
+      });
 
       if (historySortMode === "km") {
-        list.sort((a, b) => Number(a.km) - Number(b.km));
+        list.sort(function(a, b) { return Number(a.km) - Number(b.km); });
       } else if (historySortMode === "task") {
-        list.sort((a, b) => {
-          const t = a.task.localeCompare(b.task);
+        list.sort(function(a, b) {
+          const t = String(a.task).localeCompare(String(b.task));
           if (t !== 0) return t;
           return Number(a.km) - Number(b.km);
         });
       } else {
-        list.sort((a, b) => new Date(a.date) - new Date(b.date));
+        list.sort(function(a, b) {
+          const ta = a.date ? new Date(a.date).getTime() : 0;
+          const tb = b.date ? new Date(b.date).getTime() : 0;
+          return ta - tb;
+        });
       }
 
       const tb = document.getElementById("wartungHistory");
       tb.innerHTML = "";
 
-      list.forEach(e => {
+      list.forEach(function(e) {
         const tr = document.createElement("tr");
         const costText = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
         tr.innerHTML =
-          "<td>" + e.date + "</td>" +
-          "<td>" + formatKm(e.km) + "</td>" +
-          "<td>" + e.task + "</td>" +
-          "<td>" + costText + "</td>";
+          '<td><input type="date" value="' + (e.date || '') +
+          '" onchange="updateHistoryDate(' + e._idx + ', this.value)" /></td>' +
+          '<td>' + formatKm(e.km) + '</td>' +
+          '<td>' + e.task + '</td>' +
+          '<td>' + costText + '</td>';
         tb.appendChild(tr);
       });
     }
 
-    // ===== Letzten Eintrag rückgängig (Passwort Fatih) =====
+    function updateHistoryDate(index, newDate) {
+      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      if (!list[index]) return;
+      list[index].date = newDate;
+      localStorage.setItem("vw_hist", JSON.stringify(list));
+      renderHistory();
+      renderDashboard();
+    }
+
+    // ===== Letzten Eintrag Wartung rückgängig (Passwort Fatih) =====
     function undoLastHistory() {
       const pw = prompt("Passwort zum Rückgängig machen:");
       if (pw !== "Fatih") {
@@ -492,14 +530,14 @@
       renderDashboard();
     }
 
-    // ===== Monatskosten =====
+    // ===== Monatskosten WARTUNG =====
     function renderMonthly() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       const map = {};
 
-      list.forEach(e => {
+      list.forEach(function(e) {
         if (!e.date) return;
-        const key = e.date.slice(0, 7); // YYYY-MM
+        const key = e.date.slice(0, 7);
         const cost = e.cost ? Number(e.cost) : 0;
         map[key] = (map[key] || 0) + cost;
       });
@@ -507,7 +545,7 @@
       const box = document.getElementById("repMonth");
       box.innerHTML = "";
 
-      Object.keys(map).sort().forEach(month => {
+      Object.keys(map).sort().forEach(function(month) {
         const div = document.createElement("div");
         div.className = "monthbox";
         div.innerHTML = "<b>" + month + "</b>: " + map[month].toFixed(2) + " €";
@@ -517,16 +555,16 @@
 
     // ===== Tanken =====
     function addTank() {
-      const d = document.getElementById("tankDate").value;
       const kmStr = document.getElementById("tankKM").value;
       const lStr  = document.getElementById("tankL").value;
       const pStr  = document.getElementById("tankP").value;
 
-      if (!d || !kmStr || !lStr || !pStr) {
-        alert("Bitte alle Tankdaten eintragen.");
+      if (!kmStr || !lStr || !pStr) {
+        alert("Bitte Kilometer, Liter und Preis/Liter eintragen.");
         return;
       }
 
+      const d     = new Date().toISOString().split("T")[0]; // aktueller Tag
       const km    = Number(kmStr);
       const liter = Number(lStr);
       const preis = Number(pStr);
@@ -535,10 +573,15 @@
       const verb = km > 0 ? (liter / km) * 100 : 0;
 
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      list.push({ d, km, l: liter, p: preis, cost, verb });
+      list.push({ d: d, km: km, l: liter, p: preis, cost: cost, verb: verb });
       localStorage.setItem("vw_tank", JSON.stringify(list));
 
+      document.getElementById("tankKM").value = "";
+      document.getElementById("tankL").value  = "";
+      document.getElementById("tankP").value  = "";
+
       renderTank();
+      renderTankMonthly();
       renderDashboard();
     }
 
@@ -547,7 +590,7 @@
       const tb = document.getElementById("tankList");
       tb.innerHTML = "";
 
-      list.forEach(e => {
+      list.forEach(function(e) {
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + e.d + "</td>" +
@@ -560,33 +603,91 @@
       });
     }
 
+    // ===== Tank-Monatsübersicht =====
+    function renderTankMonthly() {
+      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      const map = {};
+
+      list.forEach(function(e) {
+        if (!e.d) return;
+        const key = e.d.slice(0, 7); // YYYY-MM
+        if (!map[key]) {
+          map[key] = { cost: 0, liter: 0, verbSum: 0, count: 0 };
+        }
+        map[key].cost   += e.cost || 0;
+        map[key].liter  += e.l || 0;
+        if (e.verb || e.verb === 0) {
+          map[key].verbSum += e.verb;
+          map[key].count   += 1;
+        }
+      });
+
+      const box = document.getElementById("tankMonth");
+      box.innerHTML = "";
+
+      Object.keys(map).sort().forEach(function(month) {
+        const m = map[month];
+        const avgVerb = m.count ? (m.verbSum / m.count) : 0;
+        const div = document.createElement("div");
+        div.className = "monthbox";
+        div.innerHTML =
+          "<b>" + month + "</b>: " +
+          m.liter.toFixed(1) + " L, " +
+          m.cost.toFixed(2) + " €, ∅ " +
+          avgVerb.toFixed(2) + " L/100km";
+        box.appendChild(div);
+      });
+    }
+
+    // ===== Letzten Tank-Eintrag löschen (Passwort Fatih) =====
+    function undoLastTank() {
+      const pw = prompt("Passwort zum Löschen:");
+      if (pw !== "Fatih") {
+        alert("Falsches Passwort.");
+        return;
+      }
+
+      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      if (list.length === 0) {
+        alert("Keine Tankeinträge vorhanden.");
+        return;
+      }
+
+      list.pop();
+      localStorage.setItem("vw_tank", JSON.stringify(list));
+      renderTank();
+      renderTankMonthly();
+      renderDashboard();
+    }
+
     // ===== WhatsApp-Export =====
     function exportWartungText() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       let text = "Wartung:\n";
 
-      list.forEach(e => {
+      list.forEach(function(e) {
         const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        text += e.date + " - " + formatKm(e.km) + " km - " + e.task + " - " + cost + "\n";
+        const dateText = e.date ? e.date : "";
+        text += dateText + " - " + formatKm(e.km) + " km - " + e.task + " - " + cost + "\n";
       });
 
       navigator.clipboard.writeText(text)
-        .then(() => alert("Wartungsdaten kopiert – jetzt in WhatsApp einfügen."))
-        .catch(() => alert("Konnte nicht in die Zwischenablage kopieren."));
+        .then(function() { alert("Wartungsdaten kopiert – jetzt in WhatsApp einfügen."); })
+        .catch(function() { alert("Konnte nicht in die Zwischenablage kopieren."); });
     }
 
     function exportTankText() {
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
       let text = "Tanken:\n";
 
-      list.forEach(e => {
+      list.forEach(function(e) {
         text += e.d + " - " + formatKm(e.km) + " km - " +
           e.l.toFixed(2) + " L - " + e.cost.toFixed(2) + " €\n";
       });
 
       navigator.clipboard.writeText(text)
-        .then(() => alert("Tankdaten kopiert – jetzt in WhatsApp einfügen."))
-        .catch(() => alert("Konnte nicht in die Zwischenablage kopieren."));
+        .then(function() { alert("Tankdaten kopiert – jetzt in WhatsApp einfügen."); })
+        .catch(function() { alert("Konnte nicht in die Zwischenablage kopieren."); });
     }
 
     // ===== Fahrzeugdaten speichern =====
@@ -613,7 +714,7 @@
       const lastRepSpan     = document.getElementById("dashLastRepair");
       const fuelSpan        = document.getElementById("dashFuel");
 
-      // TÜV: zuerst direkt aus Input lesen, sonst aus localStorage
+      // TÜV
       let tuevVal = document.getElementById("tuev").value;
       const vehicleRaw = localStorage.getItem("vw_vehicle");
       if (!tuevVal && vehicleRaw) {
@@ -641,16 +742,15 @@
       const hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
 
       // Letzter Ölwechsel
-      const oilEntries = hist.filter(e =>
-        e.task.toLowerCase().indexOf("ölwechsel") !== -1 ||
-        e.task.toLowerCase().indexOf("oelwechsel") !== -1 ||
-        e.task.toLowerCase().indexOf("öl") !== -1
-      );
+      const oilEntries = hist.filter(function(e) {
+        const t = String(e.task).toLowerCase();
+        return t.indexOf("ölwechsel") !== -1 || t.indexOf("oelwechsel") !== -1 || t.indexOf("öl") !== -1;
+      });
       if (oilEntries.length > 0) {
         const lastOil = oilEntries[oilEntries.length - 1];
         oilSpan.textContent =
-          lastOil.date + " bei " + formatKm(lastOil.km) + " km";
-        const oilTask = fixedTasks.find(t => t.id === "oil");
+          (lastOil.date || "") + " bei " + formatKm(lastOil.km) + " km";
+        const oilTask = fixedTasks.find(function(t){ return t.id === "oil"; });
         const interval = (oilTask && typeof oilTask.interval === "number") ? oilTask.interval : 30000;
         if (!isNaN(interval) && lastOil.km) {
           const nextKm = Number(lastOil.km) + interval;
@@ -665,9 +765,9 @@
 
       // Nächste Wartungen (Top 3)
       const upcoming = [];
-      fixedTasks.forEach(task => {
+      fixedTasks.forEach(function(task) {
         if (typeof task.interval !== "number") return; // nur km-basierte Aufgaben
-        const tEntries = hist.filter(e => e.task === task.title);
+        const tEntries = hist.filter(function(e){ return e.task === task.title; });
         let nextKm = null;
 
         if (tEntries.length > 0) {
@@ -676,17 +776,17 @@
           if (!isFinite(lastKm)) return;
           nextKm = lastKm + task.interval;
         } else {
-          const firstPreset = task.presets.find(v => typeof v === "number");
+          const firstPreset = task.presets.find(function(v){ return typeof v === "number"; });
           if (typeof firstPreset !== "number") return;
           nextKm = firstPreset;
         }
         upcoming.push({ task: task.title, km: nextKm });
       });
-      upcoming.sort((a, b) => a.km - b.km);
+      upcoming.sort(function(a, b){ return a.km - b.km; });
       if (upcoming.length > 0) {
         const top3 = upcoming.slice(0, 3);
         const text = top3
-          .map(e => e.task + " bei ca. " + formatKm(e.km) + " km")
+          .map(function(e){ return e.task + " bei ca. " + formatKm(e.km) + " km"; })
           .join(" | ");
         nextServiceSpan.textContent = text;
       } else {
@@ -694,11 +794,11 @@
       }
 
       // Letzte Reparaturkosten
-      const costEntries = hist.filter(e => e.cost && Number(e.cost) > 0);
+      const costEntries = hist.filter(function(e){ return e.cost && Number(e.cost) > 0; });
       if (costEntries.length > 0) {
         const last = costEntries[costEntries.length - 1];
         lastRepSpan.textContent =
-          last.date + " (" + Number(last.cost).toFixed(2) + " €)";
+          (last.date || "") + " (" + Number(last.cost).toFixed(2) + " €)";
       } else {
         lastRepSpan.textContent = "keine Kosten erfasst";
       }
@@ -718,6 +818,7 @@
     renderHistory();
     renderMonthly();
     renderTank();
+    renderTankMonthly();
     renderDashboard();
   </script>
 </body>
