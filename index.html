@@ -150,6 +150,7 @@
       <li><b>TÜV:</b> <span id="dashTuev">–</span></li>
       <li><b>Letzter Ölwechsel:</b> <span id="dashOil">–</span></li>
       <li><b>Nächster Ölwechsel:</b> <span id="dashNextOil">–</span></li>
+      <li><b>Nächste Wartung:</b> <span id="dashNextService">–</span></li>
       <li><b>Letzte Reparaturkosten:</b> <span id="dashLastRepair">–</span></li>
       <li><b>Letzter Verbrauch:</b> <span id="dashFuel">–</span></li>
     </ul>
@@ -195,7 +196,7 @@
     <input id="manKM" type="number">
 
     <label>Arbeit</label>
-    <input id="manTask" type="text" placeholder="z. B. Zahnriemen">
+    <input id="manTask" type="text" placeholder="z. B. TÜV, Zahnriemen">
 
     <label>Kosten (€)</label>
     <input id="manCost" type="number" step="0.01" placeholder="optional">
@@ -252,7 +253,14 @@
   </div>
 
   <script>
-    // ===== Feste VW-Inspektionsdaten (Variante A) =====
+    // ==== Helfer zum Formatieren von KM (1.000 statt 1000) ====
+    function formatKm(value) {
+      const n = Number(value);
+      if (!isFinite(n)) return value;
+      return n.toLocaleString('de-DE');
+    }
+
+    // ===== Feste VW-Inspektionsdaten =====
     const fixedTasks = [
       { id: "oil",   title: "Ölwechsel",        interval: 30000, preset: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
       { id: "innen", title: "Innenraumfilter",  interval: 60000, preset: [60000, 120000, 180000, 240000] },
@@ -339,9 +347,6 @@
       }
 
       const today = new Date().toISOString().split("T")[0];
-      const dateInput = document.getElementById("dt_" + id); // gibt es nicht mehr, also faken wir eins
-      // Datum nur intern, nicht mehr im Plan angezeigt
-      // (wenn du ein Datum-Feld im Plan sehen willst, kann ich das wieder hinzufügen)
 
       const taskObj = fixedTasks.find(t => t.id === taskId);
       const taskName = taskObj ? taskObj.title : taskId;
@@ -362,12 +367,35 @@
 
       const today = new Date().toISOString().split("T")[0];
       const cost = costStr ? Number(costStr) : 0;
+      const kmNum = Number(km);
 
-      addHistory(task, Number(km), today, cost);
+      addHistory(task, kmNum, today, cost);
+
+      // Wenn im Text "TÜV" vorkommt → TÜV-Datum übernehmen
+      if (/tüv/i.test(task) || /tuev/i.test(task)) {
+        const uebernehmen = confirm("TÜV-Wartung erkannt. Soll das TÜV-Datum übernommen und der nächste TÜV (+2 Jahre) berechnet werden?");
+        if (uebernehmen) {
+          const nextDateObj = new Date(today);
+          nextDateObj.setFullYear(nextDateObj.getFullYear() + 2);
+          const iso = nextDateObj.toISOString().split("T")[0];
+
+          // Inputfeld setzen
+          const tuevInput = document.getElementById("tuev");
+          tuevInput.value = iso;
+
+          // Fahrzeugdaten aktualisieren (oder anlegen)
+          const existing = localStorage.getItem("vw_vehicle");
+          let data = existing ? JSON.parse(existing) : {};
+          data.tuev = iso;
+          localStorage.setItem("vw_vehicle", JSON.stringify(data));
+        }
+      }
 
       document.getElementById("manKM").value = "";
       document.getElementById("manTask").value = "";
       document.getElementById("manCost").value = "";
+
+      renderDashboard();
     }
 
     // ===== Wartungshistorie speichern =====
@@ -391,7 +419,11 @@
       list.forEach(e => {
         const tr = document.createElement("tr");
         const costText = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        tr.innerHTML = "<td>" + e.date + "</td><td>" + e.km + "</td><td>" + e.task + "</td><td>" + costText + "</td>";
+        tr.innerHTML =
+          "<td>" + e.date + "</td>" +
+          "<td>" + formatKm(e.km) + "</td>" +
+          "<td>" + e.task + "</td>" +
+          "<td>" + costText + "</td>";
         tb.appendChild(tr);
       });
     }
@@ -476,7 +508,7 @@
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + e.d + "</td>" +
-          "<td>" + e.km + "</td>" +
+          "<td>" + formatKm(e.km) + "</td>" +
           "<td>" + e.l.toFixed(2) + "</td>" +
           "<td>" + e.p.toFixed(3) + " €</td>" +
           "<td>" + e.cost.toFixed(2) + " €</td>" +
@@ -492,7 +524,7 @@
 
       list.forEach(e => {
         const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        text += e.date + " - " + e.km + " km - " + e.task + " - " + cost + "\n";
+        text += e.date + " - " + formatKm(e.km) + " km - " + e.task + " - " + cost + "\n";
       });
 
       navigator.clipboard.writeText(text)
@@ -505,8 +537,8 @@
       let text = "Tanken:\n";
 
       list.forEach(e => {
-        text += e.d + " - " + e.km + " km - " + e.l.toFixed(2) +
-          " L - " + e.cost.toFixed(2) + " €\n";
+        text += e.d + " - " + formatKm(e.km) + " km - " +
+          e.l.toFixed(2) + " L - " + e.cost.toFixed(2) + " €\n";
       });
 
       navigator.clipboard.writeText(text)
@@ -531,11 +563,12 @@
 
     // ===== Dashboard =====
     function renderDashboard() {
-      const tuevSpan   = document.getElementById("dashTuev");
-      const oilSpan    = document.getElementById("dashOil");
-      const nextOilSpan= document.getElementById("dashNextOil");
-      const lastRepSpan= document.getElementById("dashLastRepair");
-      const fuelSpan   = document.getElementById("dashFuel");
+      const tuevSpan        = document.getElementById("dashTuev");
+      const oilSpan         = document.getElementById("dashOil");
+      const nextOilSpan     = document.getElementById("dashNextOil");
+      const nextServiceSpan = document.getElementById("dashNextService");
+      const lastRepSpan     = document.getElementById("dashLastRepair");
+      const fuelSpan        = document.getElementById("dashFuel");
 
       // TÜV
       const vehicleRaw = localStorage.getItem("vw_vehicle");
@@ -560,26 +593,56 @@
 
       const hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
 
-      // Letzter Ölwechsel (nimmt kmDone aus Historie)
+      // Letzter Ölwechsel
       const oilEntries = hist.filter(e =>
         e.task.toLowerCase().indexOf("ölwechsel") !== -1 ||
         e.task.toLowerCase().indexOf("oelwechsel") !== -1 ||
         e.task.toLowerCase().indexOf("öl") !== -1
       );
+      let lastOil = null;
       if (oilEntries.length > 0) {
-        const lastOil = oilEntries[oilEntries.length - 1];
+        lastOil = oilEntries[oilEntries.length - 1];
         oilSpan.textContent =
-          lastOil.date + " bei " + lastOil.km + " km";
+          lastOil.date + " bei " + formatKm(lastOil.km) + " km";
         const interval = fixedTasks[0].interval || 30000;
         if (!isNaN(interval) && lastOil.km) {
           const nextKm = Number(lastOil.km) + interval;
-          nextOilSpan.textContent = "ca. " + nextKm + " km";
+          nextOilSpan.textContent = "ca. " + formatKm(nextKm) + " km";
         } else {
           nextOilSpan.textContent = "Intervall vorhanden, aber kein km-Wert";
         }
       } else {
         oilSpan.textContent = "keine Einträge";
         nextOilSpan.textContent = "keine Daten";
+      }
+
+      // Nächste Wartung (alle festen km-basierten Tasks)
+      let bestTask = null;
+      let bestKm = null;
+      fixedTasks.forEach(task => {
+        if (typeof task.interval !== "number") return;
+        // alle Einträge in der Historie zu dieser Arbeit
+        const tEntries = hist.filter(e => e.task === task.title);
+        let nextKm = null;
+        if (tEntries.length > 0) {
+          const last = tEntries[tEntries.length - 1];
+          const lastKm = Number(last.km);
+          if (!isFinite(lastKm)) return;
+          nextKm = lastKm + task.interval;
+        } else {
+          const firstPreset = task.preset.find(v => typeof v === "number");
+          if (typeof firstPreset !== "number") return;
+          nextKm = firstPreset;
+        }
+        if (bestKm === null || nextKm < bestKm) {
+          bestKm = nextKm;
+          bestTask = task.title;
+        }
+      });
+      if (bestTask && bestKm !== null) {
+        nextServiceSpan.textContent = bestTask + " bei ca. " + formatKm(bestKm) + " km";
+      } else {
+        nextServiceSpan.textContent = "keine Daten";
       }
 
       // Letzte Reparaturkosten
