@@ -82,32 +82,25 @@
     }
 
     .task-block {
-      margin-bottom: 18px;
-      padding: 15px;
+      margin-bottom: 10px;
+      padding: 10px;
       background: var(--vw-blue-light);
       border-radius: 10px;
       border: 1px solid #c5d7e8;
     }
 
-    .task-block h3 {
-      margin: 0 0 8px 0;
+    .task-title {
+      font-weight: bold;
       color: #003764;
-      font-size: 16px;
+      margin-bottom: 4px;
+      font-size: 14px;
     }
 
-    .task-block small {
-      font-weight: normal;
-      color: #555;
-      font-size: 12px;
-    }
-
-    /* mobilefreundlich: alles untereinander */
     .entry-row {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 6px;
-      margin-bottom: 10px;
+      gap: 4px;
     }
 
     .entry-row label {
@@ -119,7 +112,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
     .entry-row .check-wrap label {
@@ -139,6 +132,19 @@
       margin: 0 0 0 18px;
       padding: 0;
     }
+
+    .sort-buttons {
+      margin-bottom: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sort-buttons button {
+      padding: 6px 10px;
+      font-size: 12px;
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
@@ -150,7 +156,7 @@
       <li><b>TÜV:</b> <span id="dashTuev">–</span></li>
       <li><b>Letzter Ölwechsel:</b> <span id="dashOil">–</span></li>
       <li><b>Nächster Ölwechsel:</b> <span id="dashNextOil">–</span></li>
-      <li><b>Nächste Wartung:</b> <span id="dashNextService">–</span></li>
+      <li><b>Nächste Wartung(en):</b> <span id="dashNextService">–</span></li>
       <li><b>Letzte Reparaturkosten:</b> <span id="dashLastRepair">–</span></li>
       <li><b>Letzter Verbrauch:</b> <span id="dashFuel">–</span></li>
     </ul>
@@ -181,10 +187,10 @@
     <button onclick="saveVehicle()">Fahrzeugdaten speichern</button>
   </div>
 
-  <!-- INSPEKTIONSPLAN (FIX) -->
+  <!-- INSPEKTIONSPLAN (FIX, ALLES UNTEREINANDER) -->
   <div class="box">
-    <h2><span class="icon">🛠️</span>VW Inspektionsplan (Fix)</h2>
-    <p>Standardarbeiten mit festen Intervallen. Häkchen = erledigt. Du kannst den tatsächlichen KM-Stand eintragen, das Dashboard nutzt diesen Wert.</p>
+    <h2><span class="icon">🛠️</span>Fixe Wartung (VW-Plan)</h2>
+    <p>Jede Zeile = eine feste Wartung. Du kannst den tatsächlichen KM-Stand eintragen, das Dashboard nutzt diesen Wert.</p>
     <div id="inspectionList"></div>
   </div>
 
@@ -207,6 +213,14 @@
   <!-- WARTUNGSHISTORIE -->
   <div class="box">
     <h2><span class="icon">📚</span>Wartungshistorie</h2>
+
+    <div class="sort-buttons">
+      <span>Sortieren nach:</span>
+      <button onclick="setHistorySort('date')">Datum</button>
+      <button onclick="setHistorySort('km')">Kilometer</button>
+      <button onclick="setHistorySort('task')">Kategorie</button>
+    </div>
+
     <table>
       <thead>
         <tr><th>Datum</th><th>KM</th><th>Arbeit</th><th>Kosten</th></tr>
@@ -262,96 +276,108 @@
 
     // ===== Feste VW-Inspektionsdaten =====
     const fixedTasks = [
-      { id: "oil",   title: "Ölwechsel",        interval: 30000, preset: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
-      { id: "innen", title: "Innenraumfilter",  interval: 60000, preset: [60000, 120000, 180000, 240000] },
-      { id: "luft",  title: "Luftfilter",       interval: 90000, preset: [90000, 180000, 270000] },
-      { id: "diesel",title: "Kraftstofffilter", interval: 90000, preset: [90000, 180000, 270000] },
-      { id: "gear",  title: "Schaltgetriebeöl", interval: 60000, preset: [60000, 120000, 180000, 240000] },
-      { id: "brake", title: "Bremsflüssigkeit", interval: "alle 2 Jahre", preset: ["11.01.2023"] }
+      { id: "oil",   title: "Ölwechsel",          interval: 30000, presets: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
+      { id: "innen", title: "Innenraumfilter",    interval: 60000, presets: [60000, 120000, 180000, 240000] },
+      { id: "luft",  title: "Luftfilter",         interval: 90000, presets: [90000, 180000, 270000] },
+      { id: "diesel",title: "Kraftstofffilter",   interval: 90000, presets: [90000, 180000, 270000] },
+      { id: "gear",  title: "Schaltgetriebeöl",   interval: 60000, presets: [60000, 120000, 180000, 240000] },
+      { id: "brake", title: "Bremsflüssigkeit",   interval: "alle 2 Jahre", presets: ["11.01.2023"] },
+      { id: "belt",  title: "Zahnriemen",         interval: 210000, presets: [210000] },
+      { id: "dpf",   title: "Rußpartikelfilter",  interval: 180000, presets: [180000] }
     ];
 
-    // ===== Inspektionsliste rendern =====
+    // Wir bauen eine flache Liste aller festen Einträge, sortiert nach km
+    const fixedEntries = [];
+    fixedTasks.forEach(task => {
+      task.presets.forEach((preset, idx) => {
+        if (typeof preset === "number") {
+          fixedEntries.push({
+            key: task.id + "_" + idx,
+            taskId: task.id,
+            title: task.title,
+            baseKm: preset,
+            interval: task.interval
+          });
+        }
+      });
+    });
+    fixedEntries.sort((a, b) => a.baseKm - b.baseKm);
+
+    // ===== fixe Wartung (Liste) rendern =====
     function renderInspectionList() {
       const box = document.getElementById("inspectionList");
       box.innerHTML = "";
 
-      fixedTasks.forEach(task => {
+      fixedEntries.forEach(entry => {
         const div = document.createElement("div");
         div.className = "task-block";
 
-        const title = document.createElement("h3");
-        title.innerHTML = task.title + " <small>(" + task.interval + ")</small>";
+        const title = document.createElement("div");
+        title.className = "task-title";
+        title.textContent = entry.title;
         div.appendChild(title);
 
-        task.preset.forEach((presetValue, index) => {
-          const id = task.id + "_" + index;
-          const row = document.createElement("div");
-          row.className = "entry-row";
+        const row = document.createElement("div");
+        row.className = "entry-row";
 
-          // Soll-KM
-          const labelSoll = document.createElement("label");
-          labelSoll.textContent = "Soll-KM";
-          const kmSoll = document.createElement("input");
-          kmSoll.id = "km_" + id;
-          kmSoll.disabled = true;
-          kmSoll.value = presetValue;
+        // Soll-KM
+        const labelSoll = document.createElement("label");
+        labelSoll.textContent = "Soll-KM";
+        const kmSoll = document.createElement("input");
+        kmSoll.disabled = true;
+        kmSoll.value = formatKm(entry.baseKm) + " km";
 
-          // Gemacht bei KM
-          const labelIst = document.createElement("label");
-          labelIst.textContent = "gemacht bei KM";
-          const kmDone = document.createElement("input");
-          kmDone.id = "done_" + id;
-          kmDone.type = "number";
-          kmDone.placeholder = "z. B. 31000";
+        // Gemacht bei KM
+        const labelIst = document.createElement("label");
+        labelIst.textContent = "gemacht bei KM";
+        const kmDone = document.createElement("input");
+        kmDone.id = "done_" + entry.key;
+        kmDone.type = "number";
+        kmDone.placeholder = "z. B. 31000";
 
-          // Checkbox
-          const checkWrap = document.createElement("div");
-          checkWrap.className = "check-wrap";
-          const check = document.createElement("input");
-          check.type = "checkbox";
-          check.id = "chk_" + id;
-          const lab = document.createElement("label");
-          lab.htmlFor = check.id;
-          lab.textContent = "erledigt";
+        // Checkbox
+        const checkWrap = document.createElement("div");
+        checkWrap.className = "check-wrap";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.id = "chk_" + entry.key;
+        const lab = document.createElement("label");
+        lab.htmlFor = check.id;
+        lab.textContent = "erledigt";
 
-          check.addEventListener("change", function () {
-            if (this.checked) {
-              finishInspection(task.id, presetValue, id);
-            }
-          });
-
-          checkWrap.appendChild(check);
-          checkWrap.appendChild(lab);
-
-          row.appendChild(labelSoll);
-          row.appendChild(kmSoll);
-          row.appendChild(labelIst);
-          row.appendChild(kmDone);
-          row.appendChild(checkWrap);
-
-          div.appendChild(row);
+        check.addEventListener("change", function () {
+          if (this.checked) {
+            finishFixedEntry(entry);
+          }
         });
 
+        checkWrap.appendChild(check);
+        checkWrap.appendChild(lab);
+
+        row.appendChild(labelSoll);
+        row.appendChild(kmSoll);
+        row.appendChild(labelIst);
+        row.appendChild(kmDone);
+        row.appendChild(checkWrap);
+
+        div.appendChild(row);
         box.appendChild(div);
       });
     }
 
-    // ===== Inspektion abgeschlossen → Historie =====
-    function finishInspection(taskId, presetValue, id) {
-      const doneField = document.getElementById("done_" + id);
-      let kmDone = doneField.value ? Number(doneField.value) : Number(presetValue);
+    // ===== feste Wartung abgeschlossen → Historie =====
+    function finishFixedEntry(entry) {
+      const doneField = document.getElementById("done_" + entry.key);
+      let kmDone = doneField.value ? Number(doneField.value) : entry.baseKm;
       if (!kmDone || kmDone <= 0) {
         alert("Bitte einen gültigen km-Wert eintragen.");
-        document.getElementById("chk_" + id).checked = false;
+        const chk = document.getElementById("chk_" + entry.key);
+        if (chk) chk.checked = false;
         return;
       }
 
       const today = new Date().toISOString().split("T")[0];
-
-      const taskObj = fixedTasks.find(t => t.id === taskId);
-      const taskName = taskObj ? taskObj.title : taskId;
-
-      addHistory(taskName, kmDone, today, 0);
+      addHistory(entry.title, kmDone, today, 0);
     }
 
     // ===== Manuelle Wartung =====
@@ -379,11 +405,9 @@
           nextDateObj.setFullYear(nextDateObj.getFullYear() + 2);
           const iso = nextDateObj.toISOString().split("T")[0];
 
-          // Inputfeld setzen
           const tuevInput = document.getElementById("tuev");
           tuevInput.value = iso;
 
-          // Fahrzeugdaten aktualisieren (oder anlegen)
           const existing = localStorage.getItem("vw_vehicle");
           let data = existing ? JSON.parse(existing) : {};
           data.tuev = iso;
@@ -408,10 +432,28 @@
       renderDashboard();
     }
 
+    let historySortMode = "date"; // "date", "km", "task"
+
+    function setHistorySort(mode) {
+      historySortMode = mode;
+      renderHistory();
+    }
+
     // ===== Wartungshistorie anzeigen =====
     function renderHistory() {
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      list.sort((a, b) => new Date(a.date) - new Date(b.date));
+      let list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+
+      if (historySortMode === "km") {
+        list.sort((a, b) => Number(a.km) - Number(b.km));
+      } else if (historySortMode === "task") {
+        list.sort((a, b) => {
+          const t = a.task.localeCompare(b.task);
+          if (t !== 0) return t;
+          return Number(a.km) - Number(b.km);
+        });
+      } else {
+        list.sort((a, b) => new Date(a.date) - new Date(b.date));
+      }
 
       const tb = document.getElementById("wartungHistory");
       tb.innerHTML = "";
@@ -570,23 +612,27 @@
       const lastRepSpan     = document.getElementById("dashLastRepair");
       const fuelSpan        = document.getElementById("dashFuel");
 
-      // TÜV
+      // TÜV: zuerst direkt aus Input lesen, sonst aus localStorage
+      let tuevVal = document.getElementById("tuev").value;
       const vehicleRaw = localStorage.getItem("vw_vehicle");
-      if (vehicleRaw) {
+      if (!tuevVal && vehicleRaw) {
         const v = JSON.parse(vehicleRaw);
         if (v.tuev) {
-          const d = new Date(v.tuev);
-          const today = new Date();
-          d.setHours(0,0,0,0);
-          today.setHours(0,0,0,0);
-          const diffDays = Math.round((d.getTime() - today.getTime()) / (1000*60*60*24));
-          const dateText = d.toLocaleDateString("de-DE");
-          if (diffDays > 0) tuevSpan.textContent = "bis " + dateText + " (" + diffDays + " Tage)";
-          else if (diffDays === 0) tuevSpan.textContent = "läuft heute ab (" + dateText + ")";
-          else tuevSpan.textContent = "abgelaufen am " + dateText + " (" + Math.abs(diffDays) + " Tage)";
-        } else {
-          tuevSpan.textContent = "keine Daten";
+          tuevVal = v.tuev;
+          document.getElementById("tuev").value = v.tuev;
         }
+      }
+
+      if (tuevVal) {
+        const d = new Date(tuevVal);
+        const today = new Date();
+        d.setHours(0,0,0,0);
+        today.setHours(0,0,0,0);
+        const diffDays = Math.round((d.getTime() - today.getTime()) / (1000*60*60*24));
+        const dateText = d.toLocaleDateString("de-DE");
+        if (diffDays > 0) tuevSpan.textContent = "bis " + dateText + " (" + diffDays + " Tage)";
+        else if (diffDays === 0) tuevSpan.textContent = "läuft heute ab (" + dateText + ")";
+        else tuevSpan.textContent = "abgelaufen am " + dateText + " (" + Math.abs(diffDays) + " Tage)";
       } else {
         tuevSpan.textContent = "keine Daten";
       }
@@ -604,7 +650,8 @@
         lastOil = oilEntries[oilEntries.length - 1];
         oilSpan.textContent =
           lastOil.date + " bei " + formatKm(lastOil.km) + " km";
-        const interval = fixedTasks[0].interval || 30000;
+        const oilTask = fixedTasks.find(t => t.id === "oil");
+        const interval = (oilTask && typeof oilTask.interval === "number") ? oilTask.interval : 30000;
         if (!isNaN(interval) && lastOil.km) {
           const nextKm = Number(lastOil.km) + interval;
           nextOilSpan.textContent = "ca. " + formatKm(nextKm) + " km";
@@ -616,46 +663,35 @@
         nextOilSpan.textContent = "keine Daten";
       }
 
-     // Nächste Wartungen (Top 3)
-const upcoming = [];
+      // Nächste Wartungen (Top 3)
+      const upcoming = [];
+      fixedTasks.forEach(task => {
+        if (typeof task.interval !== "number") return; // nur km-basierte Aufgaben
+        const tEntries = hist.filter(e => e.task === task.title);
+        let nextKm = null;
 
-fixedTasks.forEach(task => {
-  if (typeof task.interval !== "number") return; // nur km-basierte Aufgaben
-
-  // alle Einträge in der Historie zu dieser Arbeit
-  const tEntries = hist.filter(e => e.task === task.title);
-  let nextKm = null;
-
-  if (tEntries.length > 0) {
-    // letzten Eintrag nehmen
-    const last = tEntries[tEntries.length - 1];
-    const lastKm = Number(last.km);
-    if (!isFinite(lastKm)) return;
-    nextKm = lastKm + task.interval;
-  } else {
-    // noch nie gemacht -> erste Soll-KM aus preset
-    const firstPreset = task.preset.find(v => typeof v === "number");
-    if (typeof firstPreset !== "number") return;
-    nextKm = firstPreset;
-  }
-
-  upcoming.push({ task: task.title, km: nextKm });
-});
-
-// nach km sortieren
-upcoming.sort((a, b) => a.km - b.km);
-
-// die ersten 3 anzeigen
-if (upcoming.length > 0) {
-  const top3 = upcoming.slice(0, 3);
-  const text = top3
-    .map(e => e.task + " bei ca. " + formatKm(e.km) + " km")
-    .join(" | ");
-  nextServiceSpan.textContent = text;
-} else {
-  nextServiceSpan.textContent = "keine Daten";
-}
-
+        if (tEntries.length > 0) {
+          const last = tEntries[tEntries.length - 1];
+          const lastKm = Number(last.km);
+          if (!isFinite(lastKm)) return;
+          nextKm = lastKm + task.interval;
+        } else {
+          const firstPreset = task.presets.find(v => typeof v === "number");
+          if (typeof firstPreset !== "number") return;
+          nextKm = firstPreset;
+        }
+        upcoming.push({ task: task.title, km: nextKm });
+      });
+      upcoming.sort((a, b) => a.km - b.km);
+      if (upcoming.length > 0) {
+        const top3 = upcoming.slice(0, 3);
+        const text = top3
+          .map(e => e.task + " bei ca. " + formatKm(e.km) + " km")
+          .join(" | ");
+        nextServiceSpan.textContent = text;
+      } else {
+        nextServiceSpan.textContent = "keine Daten";
+      }
 
       // Letzte Reparaturkosten
       const costEntries = hist.filter(e => e.cost && Number(e.cost) > 0);
