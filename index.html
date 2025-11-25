@@ -281,12 +281,13 @@
       { id: "luft",  title: "Luftfilter",         interval: 90000, presets: [90000, 180000, 270000] },
       { id: "diesel",title: "Kraftstofffilter",   interval: 90000, presets: [90000, 180000, 270000] },
       { id: "gear",  title: "Schaltgetriebeöl",   interval: 60000, presets: [60000, 120000, 180000, 240000] },
-      { id: "brake", title: "Bremsflüssigkeit",   interval: "alle 2 Jahre", presets: ["11.01.2023"] },
+      { id: "brake", title: "Bremsflüssigkeit",   interval: 60000, presets: [60000, 120000, 180000, 240000] },
       { id: "belt",  title: "Zahnriemen",         interval: 210000, presets: [210000] },
-      { id: "dpf",   title: "Rußpartikelfilter",  interval: 180000, presets: [180000] }
+      { id: "tens",  title: "Spannrolle Zahnriemen", interval: 210000, presets: [210000] },
+      { id: "dpf",   title: "Rußpartikelfilter (DPF)",  interval: 210000, presets: [210000] }
     ];
 
-    // Wir bauen eine flache Liste aller festen Einträge, sortiert nach km
+    // flache Liste aller festen Einträge, sortiert nach km
     const fixedEntries = [];
     fixedTasks.forEach(task => {
       task.presets.forEach((preset, idx) => {
@@ -645,9 +646,8 @@
         e.task.toLowerCase().indexOf("oelwechsel") !== -1 ||
         e.task.toLowerCase().indexOf("öl") !== -1
       );
-      let lastOil = null;
       if (oilEntries.length > 0) {
-        lastOil = oilEntries[oilEntries.length - 1];
+        const lastOil = oilEntries[oilEntries.length - 1];
         oilSpan.textContent =
           lastOil.date + " bei " + formatKm(lastOil.km) + " km";
         const oilTask = fixedTasks.find(t => t.id === "oil");
