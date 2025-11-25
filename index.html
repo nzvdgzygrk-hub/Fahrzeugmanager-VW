@@ -110,10 +110,16 @@
       margin-bottom: 10px;
     }
 
+    .entry-row label {
+      font-size: 12px;
+      color: #333;
+    }
+
     .entry-row .check-wrap {
       display: flex;
       align-items: center;
       gap: 6px;
+      margin-top: 4px;
     }
 
     .entry-row .check-wrap label {
@@ -177,7 +183,7 @@
   <!-- INSPEKTIONSPLAN (FIX) -->
   <div class="box">
     <h2><span class="icon">🛠️</span>VW Inspektionsplan (Fix)</h2>
-    <p>Standardarbeiten mit festen Intervallen. Häkchen = erledigt, Datum wird automatisch gesetzt und in die Wartungshistorie übernommen.</p>
+    <p>Standardarbeiten mit festen Intervallen. Häkchen = erledigt. Du kannst den tatsächlichen KM-Stand eintragen, das Dashboard nutzt diesen Wert.</p>
     <div id="inspectionList"></div>
   </div>
 
@@ -246,27 +252,17 @@
   </div>
 
   <script>
-    // ============================
-    // Feste VW-Inspektionsdaten (Variante A)
-    // ============================
+    // ===== Feste VW-Inspektionsdaten (Variante A) =====
     const fixedTasks = [
-      // Ölwechsel bei: 30k, 60k, 90k, 120k, 150k, 180k, 210k, 240k, 270k, 300k, 330k
       { id: "oil",   title: "Ölwechsel",        interval: 30000, preset: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
-      // Innenraumfilter
       { id: "innen", title: "Innenraumfilter",  interval: 60000, preset: [60000, 120000, 180000, 240000] },
-      // Luftfilter
       { id: "luft",  title: "Luftfilter",       interval: 90000, preset: [90000, 180000, 270000] },
-      // Kraftstofffilter
       { id: "diesel",title: "Kraftstofffilter", interval: 90000, preset: [90000, 180000, 270000] },
-      // Schaltgetriebeöl
       { id: "gear",  title: "Schaltgetriebeöl", interval: 60000, preset: [60000, 120000, 180000, 240000] },
-      // Bremsflüssigkeit (alle 2 Jahre, Startdatum)
       { id: "brake", title: "Bremsflüssigkeit", interval: "alle 2 Jahre", preset: ["11.01.2023"] }
     ];
 
-    // ============================
-    // Inspektionsliste rendern
-    // ============================
+    // ===== Inspektionsliste rendern =====
     function renderInspectionList() {
       const box = document.getElementById("inspectionList");
       box.innerHTML = "";
@@ -281,29 +277,31 @@
 
         task.preset.forEach((presetValue, index) => {
           const id = task.id + "_" + index;
-
           const row = document.createElement("div");
           row.className = "entry-row";
 
-          // KM Feld (fix, nur Zahl oder Text)
-          const kmInput = document.createElement("input");
-          kmInput.id = "km_" + id;
-          kmInput.disabled = true;
-          kmInput.value = presetValue;
+          // Soll-KM
+          const labelSoll = document.createElement("label");
+          labelSoll.textContent = "Soll-KM";
+          const kmSoll = document.createElement("input");
+          kmSoll.id = "km_" + id;
+          kmSoll.disabled = true;
+          kmSoll.value = presetValue;
 
-          // Datum
-          const dateInput = document.createElement("input");
-          dateInput.id = "dt_" + id;
-          dateInput.placeholder = "Datum";
+          // Gemacht bei KM
+          const labelIst = document.createElement("label");
+          labelIst.textContent = "gemacht bei KM";
+          const kmDone = document.createElement("input");
+          kmDone.id = "done_" + id;
+          kmDone.type = "number";
+          kmDone.placeholder = "z. B. 31000";
 
-          // Checkbox + Label
+          // Checkbox
           const checkWrap = document.createElement("div");
           checkWrap.className = "check-wrap";
-
           const check = document.createElement("input");
           check.type = "checkbox";
           check.id = "chk_" + id;
-
           const lab = document.createElement("label");
           lab.htmlFor = check.id;
           lab.textContent = "erledigt";
@@ -317,8 +315,10 @@
           checkWrap.appendChild(check);
           checkWrap.appendChild(lab);
 
-          row.appendChild(kmInput);
-          row.appendChild(dateInput);
+          row.appendChild(labelSoll);
+          row.appendChild(kmSoll);
+          row.appendChild(labelIst);
+          row.appendChild(kmDone);
           row.appendChild(checkWrap);
 
           div.appendChild(row);
@@ -328,24 +328,28 @@
       });
     }
 
-    // ============================
-    // Inspektion abgeschlossen → Historie
-    // ============================
-    function finishInspection(taskId, kmValue, id) {
-      const today = new Date().toISOString().split("T")[0];
-      const dateInput = document.getElementById("dt_" + id);
-      dateInput.value = today;
+    // ===== Inspektion abgeschlossen → Historie =====
+    function finishInspection(taskId, presetValue, id) {
+      const doneField = document.getElementById("done_" + id);
+      let kmDone = doneField.value ? Number(doneField.value) : Number(presetValue);
+      if (!kmDone || kmDone <= 0) {
+        alert("Bitte einen gültigen km-Wert eintragen.");
+        document.getElementById("chk_" + id).checked = false;
+        return;
+      }
 
-      // taskId ist hier nur die Kurz-ID, für die Historie nehmen wir den Titel
+      const today = new Date().toISOString().split("T")[0];
+      const dateInput = document.getElementById("dt_" + id); // gibt es nicht mehr, also faken wir eins
+      // Datum nur intern, nicht mehr im Plan angezeigt
+      // (wenn du ein Datum-Feld im Plan sehen willst, kann ich das wieder hinzufügen)
+
       const taskObj = fixedTasks.find(t => t.id === taskId);
       const taskName = taskObj ? taskObj.title : taskId;
 
-      addHistory(taskName, kmValue, today, 0);
+      addHistory(taskName, kmDone, today, 0);
     }
 
-    // ============================
-    // Manuelle Wartung
-    // ============================
+    // ===== Manuelle Wartung =====
     function addManualWartung() {
       const km = document.getElementById("manKM").value;
       const task = document.getElementById("manTask").value.trim();
@@ -359,28 +363,24 @@
       const today = new Date().toISOString().split("T")[0];
       const cost = costStr ? Number(costStr) : 0;
 
-      addHistory(task, km, today, cost);
+      addHistory(task, Number(km), today, cost);
 
       document.getElementById("manKM").value = "";
       document.getElementById("manTask").value = "";
       document.getElementById("manCost").value = "";
     }
 
-    // ============================
-    // Wartungshistorie speichern
-    // ============================
+    // ===== Wartungshistorie speichern =====
     function addHistory(task, km, date, cost) {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      list.push({ task: task, km: km, date: date, cost: cost });
+      list.push({ task, km, date, cost });
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
       renderMonthly();
       renderDashboard();
     }
 
-    // ============================
-    // Wartungshistorie anzeigen
-    // ============================
+    // ===== Wartungshistorie anzeigen =====
     function renderHistory() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       list.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -396,9 +396,7 @@
       });
     }
 
-    // ============================
-    // Letzten Eintrag rückgängig (Passwort: Fatih)
-    // ============================
+    // ===== Letzten Eintrag rückgängig (Passwort Fatih) =====
     function undoLastHistory() {
       const pw = prompt("Passwort zum Rückgängig machen:");
       if (pw !== "Fatih") {
@@ -419,9 +417,7 @@
       renderDashboard();
     }
 
-    // ============================
-    // Monatskosten berechnen
-    // ============================
+    // ===== Monatskosten =====
     function renderMonthly() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       const map = {};
@@ -444,9 +440,7 @@
       });
     }
 
-    // ============================
-    // Tanken
-    // ============================
+    // ===== Tanken =====
     function addTank() {
       const d = document.getElementById("tankDate").value;
       const kmStr = document.getElementById("tankKM").value;
@@ -466,7 +460,7 @@
       const verb = km > 0 ? (liter / km) * 100 : 0;
 
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      list.push({ d: d, km: km, l: liter, p: preis, cost: cost, verb: verb });
+      list.push({ d, km, l: liter, p: preis, cost, verb });
       localStorage.setItem("vw_tank", JSON.stringify(list));
 
       renderTank();
@@ -491,9 +485,7 @@
       });
     }
 
-    // ============================
-    // WhatsApp-Export (Zwischenablage)
-    // ============================
+    // ===== WhatsApp-Export =====
     function exportWartungText() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       let text = "Wartung:\n";
@@ -522,9 +514,7 @@
         .catch(() => alert("Konnte nicht in die Zwischenablage kopieren."));
     }
 
-    // ============================
-    // Fahrzeugdaten speichern
-    // ============================
+    // ===== Fahrzeugdaten speichern =====
     function saveVehicle() {
       const data = {
         marke:  document.getElementById("marke").value,
@@ -539,9 +529,7 @@
       renderDashboard();
     }
 
-    // ============================
-    // Dashboard
-    // ============================
+    // ===== Dashboard =====
     function renderDashboard() {
       const tuevSpan   = document.getElementById("dashTuev");
       const oilSpan    = document.getElementById("dashOil");
@@ -572,13 +560,16 @@
 
       const hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
 
-      // Letzter Ölwechsel
+      // Letzter Ölwechsel (nimmt kmDone aus Historie)
       const oilEntries = hist.filter(e =>
-        e.task.toLowerCase().indexOf("öl") !== -1 || e.task.toLowerCase().indexOf("oel") !== -1
+        e.task.toLowerCase().indexOf("ölwechsel") !== -1 ||
+        e.task.toLowerCase().indexOf("oelwechsel") !== -1 ||
+        e.task.toLowerCase().indexOf("öl") !== -1
       );
       if (oilEntries.length > 0) {
         const lastOil = oilEntries[oilEntries.length - 1];
-        oilSpan.textContent = lastOil.date + " bei " + lastOil.km + " km";
+        oilSpan.textContent =
+          lastOil.date + " bei " + lastOil.km + " km";
         const interval = fixedTasks[0].interval || 30000;
         if (!isNaN(interval) && lastOil.km) {
           const nextKm = Number(lastOil.km) + interval;
@@ -595,7 +586,8 @@
       const costEntries = hist.filter(e => e.cost && Number(e.cost) > 0);
       if (costEntries.length > 0) {
         const last = costEntries[costEntries.length - 1];
-        lastRepSpan.textContent = last.date + " (" + Number(last.cost).toFixed(2) + " €)";
+        lastRepSpan.textContent =
+          last.date + " (" + Number(last.cost).toFixed(2) + " €)";
       } else {
         lastRepSpan.textContent = "keine Kosten erfasst";
       }
@@ -610,9 +602,7 @@
       }
     }
 
-    // ============================
-    // Initial laden
-    // ============================
+    // ===== Initial laden =====
     renderInspectionList();
     renderHistory();
     renderMonthly();
