@@ -616,34 +616,46 @@
         nextOilSpan.textContent = "keine Daten";
       }
 
-      // Nächste Wartung (alle festen km-basierten Tasks)
-      let bestTask = null;
-      let bestKm = null;
-      fixedTasks.forEach(task => {
-        if (typeof task.interval !== "number") return;
-        // alle Einträge in der Historie zu dieser Arbeit
-        const tEntries = hist.filter(e => e.task === task.title);
-        let nextKm = null;
-        if (tEntries.length > 0) {
-          const last = tEntries[tEntries.length - 1];
-          const lastKm = Number(last.km);
-          if (!isFinite(lastKm)) return;
-          nextKm = lastKm + task.interval;
-        } else {
-          const firstPreset = task.preset.find(v => typeof v === "number");
-          if (typeof firstPreset !== "number") return;
-          nextKm = firstPreset;
-        }
-        if (bestKm === null || nextKm < bestKm) {
-          bestKm = nextKm;
-          bestTask = task.title;
-        }
-      });
-      if (bestTask && bestKm !== null) {
-        nextServiceSpan.textContent = bestTask + " bei ca. " + formatKm(bestKm) + " km";
-      } else {
-        nextServiceSpan.textContent = "keine Daten";
-      }
+     // Nächste Wartungen (Top 3)
+const upcoming = [];
+
+fixedTasks.forEach(task => {
+  if (typeof task.interval !== "number") return; // nur km-basierte Aufgaben
+
+  // alle Einträge in der Historie zu dieser Arbeit
+  const tEntries = hist.filter(e => e.task === task.title);
+  let nextKm = null;
+
+  if (tEntries.length > 0) {
+    // letzten Eintrag nehmen
+    const last = tEntries[tEntries.length - 1];
+    const lastKm = Number(last.km);
+    if (!isFinite(lastKm)) return;
+    nextKm = lastKm + task.interval;
+  } else {
+    // noch nie gemacht -> erste Soll-KM aus preset
+    const firstPreset = task.preset.find(v => typeof v === "number");
+    if (typeof firstPreset !== "number") return;
+    nextKm = firstPreset;
+  }
+
+  upcoming.push({ task: task.title, km: nextKm });
+});
+
+// nach km sortieren
+upcoming.sort((a, b) => a.km - b.km);
+
+// die ersten 3 anzeigen
+if (upcoming.length > 0) {
+  const top3 = upcoming.slice(0, 3);
+  const text = top3
+    .map(e => e.task + " bei ca. " + formatKm(e.km) + " km")
+    .join(" | ");
+  nextServiceSpan.textContent = text;
+} else {
+  nextServiceSpan.textContent = "keine Daten";
+}
+
 
       // Letzte Reparaturkosten
       const costEntries = hist.filter(e => e.cost && Number(e.cost) > 0);
