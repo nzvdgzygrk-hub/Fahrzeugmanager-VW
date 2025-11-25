@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>VW Touran Fahrzeugmanager (Erweitert)</title>
+  <title>VW Touran Fahrzeugmanager</title>
   <style>
     :root {
       --vw-blue: #004b87;
@@ -31,6 +31,7 @@
       align-items: center;
       gap: 8px;
       color: var(--vw-blue);
+      font-size: 20px;
     }
 
     .icon {
@@ -47,6 +48,7 @@
     th, td {
       padding: 8px;
       border-bottom: 1px solid #ddd;
+      font-size: 14px;
     }
 
     th {
@@ -79,13 +81,6 @@
       background: #003764;
     }
 
-    .smallbtn {
-      background: #444;
-      padding: 6px 10px;
-      font-size: 13px;
-      color: white;
-    }
-
     .task-block {
       margin-bottom: 18px;
       padding: 15px;
@@ -106,19 +101,13 @@
       font-size: 12px;
     }
 
-    /* Mobile-freundliche Darstellung: alles untereinander */
+    /* mobilefreundlich: alles untereinander */
     .entry-row {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 6px;
       margin-bottom: 10px;
-    }
-
-    .entry-row input[type="text"],
-    .entry-row input[type="number"],
-    .entry-row input[type="date"] {
-      width: 100%;
     }
 
     .entry-row .check-wrap {
@@ -137,6 +126,7 @@
       border-radius: 10px;
       margin-top: 10px;
       border: 1px solid #ddd;
+      font-size: 14px;
     }
 
     ul {
@@ -147,7 +137,7 @@
 </head>
 <body>
 
-  <!-- Dashboard -->
+  <!-- DASHBOARD -->
   <div class="box">
     <h2><span class="icon">📊</span>Übersicht (Dashboard)</h2>
     <ul>
@@ -159,9 +149,10 @@
     </ul>
   </div>
 
-  <!-- Fahrzeugdaten -->
+  <!-- FAHRZEUGDATEN -->
   <div class="box">
     <h2><span class="icon">🚗</span>Fahrzeugdaten – Volkswagen Touran</h2>
+
     <label>Marke</label>
     <input id="marke" value="Volkswagen">
 
@@ -180,24 +171,25 @@
     <label>TÜV gültig bis</label>
     <input type="date" id="tuev">
 
-    <button onclick="saveVehicle()">Speichern</button>
+    <button onclick="saveVehicle()">Fahrzeugdaten speichern</button>
   </div>
 
-  <!-- Inspektionsplan (fest) -->
+  <!-- INSPEKTIONSPLAN (FIX) -->
   <div class="box">
     <h2><span class="icon">🛠️</span>VW Inspektionsplan (Fix)</h2>
     <p>Standardarbeiten mit festen Intervallen. Häkchen = erledigt, Datum wird automatisch gesetzt und in die Wartungshistorie übernommen.</p>
     <div id="inspectionList"></div>
   </div>
 
-  <!-- Wartung manuell -->
+  <!-- MANUELLE WARTUNG -->
   <div class="box">
     <h2><span class="icon">📋</span>Wartung manuell eintragen</h2>
+
     <label>Kilometer</label>
     <input id="manKM" type="number">
 
     <label>Arbeit</label>
-    <input id="manTask" type="text" placeholder="z.B. Zahnriemen">
+    <input id="manTask" type="text" placeholder="z. B. Zahnriemen">
 
     <label>Kosten (€)</label>
     <input id="manCost" type="number" step="0.01" placeholder="optional">
@@ -205,7 +197,7 @@
     <button onclick="addManualWartung()">Wartung speichern</button>
   </div>
 
-  <!-- Wartungshistorie -->
+  <!-- WARTUNGSHISTORIE -->
   <div class="box">
     <h2><span class="icon">📚</span>Wartungshistorie</h2>
     <table>
@@ -219,13 +211,13 @@
     <button onclick="exportWartungText()">Export Wartung (WhatsApp)</button>
   </div>
 
-  <!-- Reparaturkosten pro Monat -->
+  <!-- MONATSKOSTEN -->
   <div class="box">
     <h2><span class="icon">📅</span>Reparaturkosten pro Monat</h2>
     <div id="repMonth"></div>
   </div>
 
-  <!-- Tanken -->
+  <!-- TANKEN -->
   <div class="box">
     <h2><span class="icon">⛽</span>Tanken &amp; Verbrauch</h2>
 
@@ -241,7 +233,7 @@
     <label>Preis pro Liter (€)</label>
     <input type="number" id="tankP" step="0.001">
 
-    <button onclick="addTank()">Eintragen</button>
+    <button onclick="addTank()">Tanken eintragen</button>
 
     <table>
       <thead>
@@ -254,22 +246,27 @@
   </div>
 
   <script>
-    //--------------------------------------------------
-    // Feste Inspektionsdaten
-    //--------------------------------------------------
+    // ============================
+    // Feste VW-Inspektionsdaten (Variante A)
+    // ============================
     const fixedTasks = [
-      // basierend auf deinem VW-Plan: mehrere feste KM-Stufen
+      // Ölwechsel bei: 30k, 60k, 90k, 120k, 150k, 180k, 210k, 240k, 270k, 300k, 330k
       { id: "oil",   title: "Ölwechsel",        interval: 30000, preset: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
+      // Innenraumfilter
       { id: "innen", title: "Innenraumfilter",  interval: 60000, preset: [60000, 120000, 180000, 240000] },
+      // Luftfilter
       { id: "luft",  title: "Luftfilter",       interval: 90000, preset: [90000, 180000, 270000] },
+      // Kraftstofffilter
       { id: "diesel",title: "Kraftstofffilter", interval: 90000, preset: [90000, 180000, 270000] },
+      // Schaltgetriebeöl
       { id: "gear",  title: "Schaltgetriebeöl", interval: 60000, preset: [60000, 120000, 180000, 240000] },
-      { id: "brake", title: "Bremsflüssigkeit", interval: "2 Jahre", preset: ["11.01.2023"] }
+      // Bremsflüssigkeit (alle 2 Jahre, Startdatum)
+      { id: "brake", title: "Bremsflüssigkeit", interval: "alle 2 Jahre", preset: ["11.01.2023"] }
     ];
 
-    //--------------------------------------------------
+    // ============================
     // Inspektionsliste rendern
-    //--------------------------------------------------
+    // ============================
     function renderInspectionList() {
       const box = document.getElementById("inspectionList");
       box.innerHTML = "";
@@ -279,19 +276,20 @@
         div.className = "task-block";
 
         const title = document.createElement("h3");
-        title.innerHTML = `${task.title} <small>(${task.interval})</small>`;
+        title.innerHTML = task.title + " <small>(" + task.interval + ")</small>";
         div.appendChild(title);
 
-        task.preset.forEach((v, i) => {
-          const id = task.id + "_" + i;
+        task.preset.forEach((presetValue, index) => {
+          const id = task.id + "_" + index;
+
           const row = document.createElement("div");
           row.className = "entry-row";
 
-          // KM (fest)
+          // KM Feld (fix, nur Zahl oder Text)
           const kmInput = document.createElement("input");
           kmInput.id = "km_" + id;
-          kmInput.value = v;
           kmInput.disabled = true;
+          kmInput.value = presetValue;
 
           // Datum
           const dateInput = document.createElement("input");
@@ -301,16 +299,18 @@
           // Checkbox + Label
           const checkWrap = document.createElement("div");
           checkWrap.className = "check-wrap";
+
           const check = document.createElement("input");
           check.type = "checkbox";
           check.id = "chk_" + id;
+
           const lab = document.createElement("label");
           lab.htmlFor = check.id;
           lab.textContent = "erledigt";
 
           check.addEventListener("change", function () {
             if (this.checked) {
-              finishInspection(task.id, v, id);
+              finishInspection(task.id, presetValue, id);
             }
           });
 
@@ -328,25 +328,28 @@
       });
     }
 
-    //--------------------------------------------------
-    // Inspektion abgeschlossen → in Historie übernehmen → in Historie übernehmen
-    //--------------------------------------------------
-    function finishInspection(taskId, km, id) {
-      const checkbox = document.getElementById("chk_" + id);
-      if (!checkbox.checked) return;
-
+    // ============================
+    // Inspektion abgeschlossen → Historie
+    // ============================
+    function finishInspection(taskId, kmValue, id) {
       const today = new Date().toISOString().split("T")[0];
-      document.getElementById("dt_" + id).value = today;
-      addHistory(taskId, km, today, 0);
+      const dateInput = document.getElementById("dt_" + id);
+      dateInput.value = today;
+
+      // taskId ist hier nur die Kurz-ID, für die Historie nehmen wir den Titel
+      const taskObj = fixedTasks.find(t => t.id === taskId);
+      const taskName = taskObj ? taskObj.title : taskId;
+
+      addHistory(taskName, kmValue, today, 0);
     }
 
-    //--------------------------------------------------
+    // ============================
     // Manuelle Wartung
-    //--------------------------------------------------
+    // ============================
     function addManualWartung() {
-      const km   = document.getElementById("manKM").value;
+      const km = document.getElementById("manKM").value;
       const task = document.getElementById("manTask").value.trim();
-      const cost = document.getElementById("manCost").value;
+      const costStr = document.getElementById("manCost").value;
 
       if (!km || !task) {
         alert("Bitte Kilometer und Arbeit eintragen!");
@@ -354,28 +357,30 @@
       }
 
       const today = new Date().toISOString().split("T")[0];
-      const costNum = cost ? Number(cost) : 0;
-      addHistory(task, km, today, costNum);
+      const cost = costStr ? Number(costStr) : 0;
+
+      addHistory(task, km, today, cost);
 
       document.getElementById("manKM").value = "";
       document.getElementById("manTask").value = "";
       document.getElementById("manCost").value = "";
     }
 
-    //--------------------------------------------------
+    // ============================
     // Wartungshistorie speichern
-    //--------------------------------------------------
+    // ============================
     function addHistory(task, km, date, cost) {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      list.push({ task, km, date, cost });
+      list.push({ task: task, km: km, date: date, cost: cost });
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
       renderMonthly();
+      renderDashboard();
     }
 
-    //--------------------------------------------------
+    // ============================
     // Wartungshistorie anzeigen
-    //--------------------------------------------------
+    // ============================
     function renderHistory() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       list.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -385,17 +390,17 @@
 
       list.forEach(e => {
         const tr = document.createElement("tr");
-        const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        tr.innerHTML = `<td>${e.date}</td><td>${e.km}</td><td>${e.task}</td><td>${cost}</td>`;
+        const costText = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
+        tr.innerHTML = "<td>" + e.date + "</td><td>" + e.km + "</td><td>" + e.task + "</td><td>" + costText + "</td>";
         tb.appendChild(tr);
       });
     }
 
-    //--------------------------------------------------
-    // Letzten Eintrag rückgängig machen (Passwort Fatih)
-    //--------------------------------------------------
+    // ============================
+    // Letzten Eintrag rückgängig (Passwort: Fatih)
+    // ============================
     function undoLastHistory() {
-      const pw = prompt("Passwort?");
+      const pw = prompt("Passwort zum Rückgängig machen:");
       if (pw !== "Fatih") {
         alert("Falsches Passwort.");
         return;
@@ -411,18 +416,19 @@
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
       renderMonthly();
+      renderDashboard();
     }
 
-    //--------------------------------------------------
+    // ============================
     // Monatskosten berechnen
-    //--------------------------------------------------
+    // ============================
     function renderMonthly() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       const map = {};
 
       list.forEach(e => {
-        const key = e.date ? e.date.slice(0, 7) : ""; // YYYY-MM
-        if (!key) return;
+        if (!e.date) return;
+        const key = e.date.slice(0, 7); // YYYY-MM
         const cost = e.cost ? Number(e.cost) : 0;
         map[key] = (map[key] || 0) + cost;
       });
@@ -433,35 +439,38 @@
       Object.keys(map).sort().forEach(month => {
         const div = document.createElement("div");
         div.className = "monthbox";
-        div.innerHTML = `<b>${month}</b>: ${map[month].toFixed(2)} €`;
+        div.innerHTML = "<b>" + month + "</b>: " + map[month].toFixed(2) + " €";
         box.appendChild(div);
       });
     }
 
-    //--------------------------------------------------
+    // ============================
     // Tanken
-    //--------------------------------------------------
+    // ============================
     function addTank() {
       const d = document.getElementById("tankDate").value;
-      const km = document.getElementById("tankKM").value;
-      const l  = document.getElementById("tankL").value;
-      const p  = document.getElementById("tankP").value;
+      const kmStr = document.getElementById("tankKM").value;
+      const lStr  = document.getElementById("tankL").value;
+      const pStr  = document.getElementById("tankP").value;
 
-      if (!d || !km || !l || !p) {
+      if (!d || !kmStr || !lStr || !pStr) {
         alert("Bitte alle Tankdaten eintragen.");
         return;
       }
 
-      const liters = Number(l);
-      const price  = Number(p);
-      const dist   = Number(km);
-      const cost   = liters * price;
-      const verb   = dist > 0 ? (liters / dist) * 100 : 0;
+      const km    = Number(kmStr);
+      const liter = Number(lStr);
+      const preis = Number(pStr);
+
+      const cost = liter * preis;
+      const verb = km > 0 ? (liter / km) * 100 : 0;
 
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      list.push({ d, km: dist, l: liters, p: price, cost, verb });
+      list.push({ d: d, km: km, l: liter, p: preis, cost: cost, verb: verb });
       localStorage.setItem("vw_tank", JSON.stringify(list));
+
       renderTank();
+      renderDashboard();
     }
 
     function renderTank() {
@@ -471,23 +480,27 @@
 
       list.forEach(e => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${e.d}</td><td>${e.km}</td><td>${e.l.toFixed(2)}</td><td>${e.p.toFixed(3)} €</td><td>${e.cost.toFixed(2)} €</td><td>${e.verb.toFixed(2)}</td>`;
+        tr.innerHTML =
+          "<td>" + e.d + "</td>" +
+          "<td>" + e.km + "</td>" +
+          "<td>" + e.l.toFixed(2) + "</td>" +
+          "<td>" + e.p.toFixed(3) + " €</td>" +
+          "<td>" + e.cost.toFixed(2) + " €</td>" +
+          "<td>" + e.verb.toFixed(2) + "</td>";
         tb.appendChild(tr);
       });
     }
 
-    //--------------------------------------------------
-    // WhatsApp-Export (Text in Zwischenablage)
-    //--------------------------------------------------
+    // ============================
+    // WhatsApp-Export (Zwischenablage)
+    // ============================
     function exportWartungText() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      let text = "Wartung:
-";
+      let text = "Wartung:\n";
 
       list.forEach(e => {
         const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        text += `${e.date} - ${e.km} km - ${e.task} - ${cost}
-`;
+        text += e.date + " - " + e.km + " km - " + e.task + " - " + cost + "\n";
       });
 
       navigator.clipboard.writeText(text)
@@ -497,12 +510,11 @@
 
     function exportTankText() {
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      let text = "Tanken:
-";
+      let text = "Tanken:\n";
 
       list.forEach(e => {
-        text += `${e.d} - ${e.km} km - ${e.l.toFixed(2)} L - ${e.cost.toFixed(2)} €
-`;
+        text += e.d + " - " + e.km + " km - " + e.l.toFixed(2) +
+          " L - " + e.cost.toFixed(2) + " €\n";
       });
 
       navigator.clipboard.writeText(text)
@@ -510,29 +522,102 @@
         .catch(() => alert("Konnte nicht in die Zwischenablage kopieren."));
     }
 
-    //--------------------------------------------------
-    // Fahrzeugdaten speichern (localStorage)
-    //--------------------------------------------------
+    // ============================
+    // Fahrzeugdaten speichern
+    // ============================
     function saveVehicle() {
       const data = {
-        marke: document.getElementById("marke").value,
+        marke:  document.getElementById("marke").value,
         modell: document.getElementById("modell").value,
-        hsn: document.getElementById("hsn").value,
-        tsn: document.getElementById("tsn").value,
-        plate: document.getElementById("plate").value,
-        tuev: document.getElementById("tuev").value
+        hsn:    document.getElementById("hsn").value,
+        tsn:    document.getElementById("tsn").value,
+        plate:  document.getElementById("plate").value,
+        tuev:   document.getElementById("tuev").value
       };
       localStorage.setItem("vw_vehicle", JSON.stringify(data));
       alert("Fahrzeugdaten gespeichert.");
+      renderDashboard();
     }
 
-    //--------------------------------------------------
+    // ============================
+    // Dashboard
+    // ============================
+    function renderDashboard() {
+      const tuevSpan   = document.getElementById("dashTuev");
+      const oilSpan    = document.getElementById("dashOil");
+      const nextOilSpan= document.getElementById("dashNextOil");
+      const lastRepSpan= document.getElementById("dashLastRepair");
+      const fuelSpan   = document.getElementById("dashFuel");
+
+      // TÜV
+      const vehicleRaw = localStorage.getItem("vw_vehicle");
+      if (vehicleRaw) {
+        const v = JSON.parse(vehicleRaw);
+        if (v.tuev) {
+          const d = new Date(v.tuev);
+          const today = new Date();
+          d.setHours(0,0,0,0);
+          today.setHours(0,0,0,0);
+          const diffDays = Math.round((d.getTime() - today.getTime()) / (1000*60*60*24));
+          const dateText = d.toLocaleDateString("de-DE");
+          if (diffDays > 0) tuevSpan.textContent = "bis " + dateText + " (" + diffDays + " Tage)";
+          else if (diffDays === 0) tuevSpan.textContent = "läuft heute ab (" + dateText + ")";
+          else tuevSpan.textContent = "abgelaufen am " + dateText + " (" + Math.abs(diffDays) + " Tage)";
+        } else {
+          tuevSpan.textContent = "keine Daten";
+        }
+      } else {
+        tuevSpan.textContent = "keine Daten";
+      }
+
+      const hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+
+      // Letzter Ölwechsel
+      const oilEntries = hist.filter(e =>
+        e.task.toLowerCase().indexOf("öl") !== -1 || e.task.toLowerCase().indexOf("oel") !== -1
+      );
+      if (oilEntries.length > 0) {
+        const lastOil = oilEntries[oilEntries.length - 1];
+        oilSpan.textContent = lastOil.date + " bei " + lastOil.km + " km";
+        const interval = fixedTasks[0].interval || 30000;
+        if (!isNaN(interval) && lastOil.km) {
+          const nextKm = Number(lastOil.km) + interval;
+          nextOilSpan.textContent = "ca. " + nextKm + " km";
+        } else {
+          nextOilSpan.textContent = "Intervall vorhanden, aber kein km-Wert";
+        }
+      } else {
+        oilSpan.textContent = "keine Einträge";
+        nextOilSpan.textContent = "keine Daten";
+      }
+
+      // Letzte Reparaturkosten
+      const costEntries = hist.filter(e => e.cost && Number(e.cost) > 0);
+      if (costEntries.length > 0) {
+        const last = costEntries[costEntries.length - 1];
+        lastRepSpan.textContent = last.date + " (" + Number(last.cost).toFixed(2) + " €)";
+      } else {
+        lastRepSpan.textContent = "keine Kosten erfasst";
+      }
+
+      // Letzter Verbrauch
+      const fuelList = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      if (fuelList.length > 0) {
+        const lastTank = fuelList[fuelList.length - 1];
+        fuelSpan.textContent = lastTank.verb.toFixed(2) + " L/100km";
+      } else {
+        fuelSpan.textContent = "keine Tankdaten";
+      }
+    }
+
+    // ============================
     // Initial laden
-    //--------------------------------------------------
+    // ============================
     renderInspectionList();
     renderHistory();
     renderMonthly();
     renderTank();
+    renderDashboard();
   </script>
 </body>
 </html>
