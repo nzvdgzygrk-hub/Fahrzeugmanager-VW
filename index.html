@@ -183,16 +183,16 @@
     <h2><span class="icon">🚗</span>Fahrzeugdaten – Volkswagen Touran</h2>
 
     <label>Marke</label>
-    <input id="marke" value="Volkswagen">
+    <input id="marke">
 
     <label>Modell</label>
-    <input id="modell" value="Touran 2.0 TDI 110kW">
+    <input id="modell">
 
     <label>Schlüsselnummer 2.1</label>
-    <input id="hsn" value="4527">
+    <input id="hsn">
 
     <label>Schlüsselnummer 2.2</label>
-    <input id="tsn" value="4632">
+    <input id="tsn">
 
     <label>Kennzeichen</label>
     <input id="plate">
@@ -239,7 +239,7 @@
 
     <table>
       <thead>
-        <tr><th>Datum</th><th>KM</th><th>Arbeit</th><th>Kosten</th></tr>
+        <tr><th>Datum (leer oder Jahr/Datum)</th><th>KM</th><th>Arbeit</th><th>Kosten</th></tr>
       </thead>
       <tbody id="wartungHistory"></tbody>
     </table>
@@ -295,6 +295,19 @@
       return n.toLocaleString('de-DE');
     }
 
+    // Datum-String in Zahl zum Sortieren umwandeln (unterstützt Jahr ODER voll)
+    function parseDateLike(str) {
+      if (!str) return 0;
+      str = String(str).trim();
+      // nur Jahr, z.B. "2020"
+      if (/^\d{4}$/.test(str)) {
+        return new Date(str + "-01-01").getTime();
+      }
+      // sonst normal parsen
+      var t = Date.parse(str);
+      return isNaN(t) ? 0 : t;
+    }
+
     // ===== Feste VW-Inspektionsdaten =====
     const fixedTasks = [
       { id: "oil",   title: "Ölwechsel",              interval: 30000,  presets: [30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000, 270000, 300000, 330000] },
@@ -307,6 +320,8 @@
       { id: "tens",  title: "Spannrolle Zahnriemen",  interval: 210000, presets: [210000] },
       { id: "dpf",   title: "Rußpartikelfilter (DPF)",interval: 210000, presets: [210000] }
     ];
+
+    const FIXED_STATE_KEY = "vw_fixed"; // Zustand der Häkchen + kmDone
 
     // flache Liste aller festen Einträge, sortiert nach km
     const fixedEntries = [];
@@ -325,51 +340,86 @@
     });
     fixedEntries.sort(function(a, b) { return a.baseKm - b.baseKm; });
 
+    // ===== fixe Wartung Zustand laden/speichern =====
+    function getFixedState() {
+      return JSON.parse(localStorage.getItem(FIXED_STATE_KEY) || "{}");
+    }
+    function setFixedState(state) {
+      localStorage.setItem(FIXED_STATE_KEY, JSON.stringify(state));
+    }
+    function updateFixedState(key, newData) {
+      var state = getFixedState();
+      if (!state[key]) state[key] = {};
+      for (var k in newData) {
+        state[key][k] = newData[k];
+      }
+      setFixedState(state);
+    }
+
     // ===== fixe Wartung (Liste) rendern =====
     function renderInspectionList() {
-      const box = document.getElementById("inspectionList");
+      var box = document.getElementById("inspectionList");
       box.innerHTML = "";
 
+      var fixedState = getFixedState();
+
       fixedEntries.forEach(function(entry) {
-        const div = document.createElement("div");
+        var div = document.createElement("div");
         div.className = "task-block";
 
-        const title = document.createElement("div");
+        var title = document.createElement("div");
         title.className = "task-title";
         title.textContent = entry.title;
         div.appendChild(title);
 
-        const row = document.createElement("div");
+        var row = document.createElement("div");
         row.className = "entry-row";
 
         // Soll-KM
-        const labelSoll = document.createElement("label");
+        var labelSoll = document.createElement("label");
         labelSoll.textContent = "Soll-KM";
-        const kmSoll = document.createElement("input");
+        var kmSoll = document.createElement("input");
         kmSoll.disabled = true;
         kmSoll.value = formatKm(entry.baseKm) + " km";
 
         // Gemacht bei KM
-        const labelIst = document.createElement("label");
+        var labelIst = document.createElement("label");
         labelIst.textContent = "gemacht bei KM";
-        const kmDone = document.createElement("input");
+        var kmDone = document.createElement("input");
         kmDone.id = "done_" + entry.key;
         kmDone.type = "number";
         kmDone.placeholder = "z. B. 31000";
 
+        if (fixedState[entry.key] && fixedState[entry.key].kmDone) {
+          kmDone.value = fixedState[entry.key].kmDone;
+        }
+
+        kmDone.addEventListener("change", function() {
+          var val = this.value ? Number(this.value) : "";
+          updateFixedState(entry.key, { kmDone: val });
+        });
+
         // Checkbox
-        const checkWrap = document.createElement("div");
+        var checkWrap = document.createElement("div");
         checkWrap.className = "check-wrap";
-        const check = document.createElement("input");
+        var check = document.createElement("input");
         check.type = "checkbox";
         check.id = "chk_" + entry.key;
-        const lab = document.createElement("label");
+
+        if (fixedState[entry.key] && fixedState[entry.key].done) {
+          check.checked = true;
+        }
+
+        var lab = document.createElement("label");
         lab.htmlFor = check.id;
         lab.textContent = "erledigt";
 
         check.addEventListener("change", function () {
           if (this.checked) {
             finishFixedEntry(entry);
+          } else {
+            // nur Zustand zurücksetzen, Historie bleibt
+            updateFixedState(entry.key, { done: false });
           }
         });
 
@@ -387,51 +437,53 @@
       });
     }
 
-    // ===== feste Wartung abgeschlossen → Historie =====
+    // ===== feste Wartung abgeschlossen → Historie + Zustand speichern =====
     function finishFixedEntry(entry) {
-      const doneField = document.getElementById("done_" + entry.key);
-      let kmDone = doneField.value ? Number(doneField.value) : entry.baseKm;
+      var doneField = document.getElementById("done_" + entry.key);
+      var kmDone = doneField.value ? Number(doneField.value) : entry.baseKm;
       if (!kmDone || kmDone <= 0) {
         alert("Bitte einen gültigen km-Wert eintragen.");
-        const chk = document.getElementById("chk_" + entry.key);
+        var chk = document.getElementById("chk_" + entry.key);
         if (chk) chk.checked = false;
         return;
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      var today = new Date().toISOString().split("T")[0];
       addHistory(entry.title, kmDone, today, 0);
+
+      updateFixedState(entry.key, { done: true, kmDone: kmDone });
     }
 
     // ===== Manuelle Wartung =====
     function addManualWartung() {
-      const km = document.getElementById("manKM").value;
-      const task = document.getElementById("manTask").value.trim();
-      const costStr = document.getElementById("manCost").value;
+      var km = document.getElementById("manKM").value;
+      var task = document.getElementById("manTask").value.trim();
+      var costStr = document.getElementById("manCost").value;
 
       if (!km || !task) {
         alert("Bitte Kilometer und Arbeit eintragen!");
         return;
       }
 
-      const today = new Date().toISOString().split("T")[0];
-      const cost = costStr ? Number(costStr) : 0;
-      const kmNum = Number(km);
+      var today = new Date().toISOString().split("T")[0];
+      var cost = costStr ? Number(costStr) : 0;
+      var kmNum = Number(km);
 
       addHistory(task, kmNum, today, cost);
 
       // Wenn im Text "TÜV" vorkommt → TÜV-Datum übernehmen
       if (/tüv/i.test(task) || /tuev/i.test(task)) {
-        const uebernehmen = confirm("TÜV-Wartung erkannt. Soll das TÜV-Datum übernommen und der nächste TÜV (+2 Jahre) berechnet werden?");
+        var uebernehmen = confirm("TÜV-Wartung erkannt. Soll das TÜV-Datum übernommen und der nächste TÜV (+2 Jahre) berechnet werden?");
         if (uebernehmen) {
-          const nextDateObj = new Date(today);
+          var nextDateObj = new Date(today);
           nextDateObj.setFullYear(nextDateObj.getFullYear() + 2);
-          const iso = nextDateObj.toISOString().split("T")[0];
+          var iso = nextDateObj.toISOString().split("T")[0];
 
-          const tuevInput = document.getElementById("tuev");
+          var tuevInput = document.getElementById("tuev");
           tuevInput.value = iso;
 
-          const existing = localStorage.getItem("vw_vehicle");
-          let data = existing ? JSON.parse(existing) : {};
+          var existing = localStorage.getItem("vw_vehicle");
+          var data = existing ? JSON.parse(existing) : {};
           data.tuev = iso;
           localStorage.setItem("vw_vehicle", JSON.stringify(data));
         }
@@ -446,7 +498,7 @@
 
     // ===== Wartungshistorie speichern =====
     function addHistory(task, km, date, cost) {
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       list.push({ task: task, km: km, date: date, cost: cost });
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
@@ -454,17 +506,17 @@
       renderDashboard();
     }
 
-    let historySortMode = "date"; // "date", "km", "task"
+    var historySortMode = "date"; // "date", "km", "task"
 
     function setHistorySort(mode) {
       historySortMode = mode;
       renderHistory();
     }
 
-    // ===== Wartungshistorie anzeigen (Datum editierbar) =====
+    // ===== Wartungshistorie anzeigen (Datum editierbar TEXT) =====
     function renderHistory() {
-      const raw = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      let list = raw.map(function(e, idx) {
+      var raw = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var list = raw.map(function(e, idx) {
         return { task: e.task, km: e.km, date: e.date || "", cost: e.cost, _idx: idx };
       });
 
@@ -472,27 +524,27 @@
         list.sort(function(a, b) { return Number(a.km) - Number(b.km); });
       } else if (historySortMode === "task") {
         list.sort(function(a, b) {
-          const t = String(a.task).localeCompare(String(b.task));
+          var t = String(a.task).localeCompare(String(b.task));
           if (t !== 0) return t;
           return Number(a.km) - Number(b.km);
         });
       } else {
         list.sort(function(a, b) {
-          const ta = a.date ? new Date(a.date).getTime() : 0;
-          const tb = b.date ? new Date(b.date).getTime() : 0;
+          var ta = parseDateLike(a.date);
+          var tb = parseDateLike(b.date);
           return ta - tb;
         });
       }
 
-      const tb = document.getElementById("wartungHistory");
+      var tb = document.getElementById("wartungHistory");
       tb.innerHTML = "";
 
       list.forEach(function(e) {
-        const tr = document.createElement("tr");
-        const costText = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
+        var tr = document.createElement("tr");
+        var costText = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
         tr.innerHTML =
-          '<td><input type="date" value="' + (e.date || '') +
-          '" onchange="updateHistoryDate(' + e._idx + ', this.value)" /></td>' +
+          '<td><input type="text" value="' + (e.date || '') +
+          '" placeholder="JJJJ oder JJJJ-MM-TT" onchange="updateHistoryDate(' + e._idx + ', this.value)" /></td>' +
           '<td>' + formatKm(e.km) + '</td>' +
           '<td>' + e.task + '</td>' +
           '<td>' + costText + '</td>';
@@ -501,9 +553,9 @@
     }
 
     function updateHistoryDate(index, newDate) {
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       if (!list[index]) return;
-      list[index].date = newDate;
+      list[index].date = newDate; // kann leer oder nur Jahr sein
       localStorage.setItem("vw_hist", JSON.stringify(list));
       renderHistory();
       renderDashboard();
@@ -511,13 +563,13 @@
 
     // ===== Letzten Eintrag Wartung rückgängig (Passwort Fatih) =====
     function undoLastHistory() {
-      const pw = prompt("Passwort zum Rückgängig machen:");
+      var pw = prompt("Passwort zum Rückgängig machen:");
       if (pw !== "Fatih") {
         alert("Falsches Passwort.");
         return;
       }
 
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
       if (list.length === 0) {
         alert("Keine Einträge vorhanden.");
         return;
@@ -532,21 +584,27 @@
 
     // ===== Monatskosten WARTUNG =====
     function renderMonthly() {
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      const map = {};
+      var list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var map = {};
 
       list.forEach(function(e) {
         if (!e.date) return;
-        const key = e.date.slice(0, 7);
-        const cost = e.cost ? Number(e.cost) : 0;
+        var key = null;
+        if (e.date.length >= 7) {
+          key = e.date.slice(0, 7); // YYYY-MM
+        } else if (e.date.length >= 4) {
+          key = e.date.slice(0, 4); // nur Jahr
+        }
+        if (!key) return;
+        var cost = e.cost ? Number(e.cost) : 0;
         map[key] = (map[key] || 0) + cost;
       });
 
-      const box = document.getElementById("repMonth");
+      var box = document.getElementById("repMonth");
       box.innerHTML = "";
 
       Object.keys(map).sort().forEach(function(month) {
-        const div = document.createElement("div");
+        var div = document.createElement("div");
         div.className = "monthbox";
         div.innerHTML = "<b>" + month + "</b>: " + map[month].toFixed(2) + " €";
         box.appendChild(div);
@@ -555,24 +613,24 @@
 
     // ===== Tanken =====
     function addTank() {
-      const kmStr = document.getElementById("tankKM").value;
-      const lStr  = document.getElementById("tankL").value;
-      const pStr  = document.getElementById("tankP").value;
+      var kmStr = document.getElementById("tankKM").value;
+      var lStr  = document.getElementById("tankL").value;
+      var pStr  = document.getElementById("tankP").value;
 
       if (!kmStr || !lStr || !pStr) {
         alert("Bitte Kilometer, Liter und Preis/Liter eintragen.");
         return;
       }
 
-      const d     = new Date().toISOString().split("T")[0]; // aktueller Tag
-      const km    = Number(kmStr);
-      const liter = Number(lStr);
-      const preis = Number(pStr);
+      var d     = new Date().toISOString().split("T")[0]; // aktueller Tag
+      var km    = Number(kmStr);
+      var liter = Number(lStr);
+      var preis = Number(pStr);
 
-      const cost = liter * preis;
-      const verb = km > 0 ? (liter / km) * 100 : 0;
+      var cost = liter * preis;
+      var verb = km > 0 ? (liter / km) * 100 : 0;
 
-      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
       list.push({ d: d, km: km, l: liter, p: preis, cost: cost, verb: verb });
       localStorage.setItem("vw_tank", JSON.stringify(list));
 
@@ -586,12 +644,12 @@
     }
 
     function renderTank() {
-      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      const tb = document.getElementById("tankList");
+      var list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var tb = document.getElementById("tankList");
       tb.innerHTML = "";
 
       list.forEach(function(e) {
-        const tr = document.createElement("tr");
+        var tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + e.d + "</td>" +
           "<td>" + formatKm(e.km) + "</td>" +
@@ -605,12 +663,12 @@
 
     // ===== Tank-Monatsübersicht =====
     function renderTankMonthly() {
-      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      const map = {};
+      var list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var map = {};
 
       list.forEach(function(e) {
         if (!e.d) return;
-        const key = e.d.slice(0, 7); // YYYY-MM
+        var key = e.d.slice(0, 7); // YYYY-MM
         if (!map[key]) {
           map[key] = { cost: 0, liter: 0, verbSum: 0, count: 0 };
         }
@@ -622,13 +680,13 @@
         }
       });
 
-      const box = document.getElementById("tankMonth");
+      var box = document.getElementById("tankMonth");
       box.innerHTML = "";
 
       Object.keys(map).sort().forEach(function(month) {
-        const m = map[month];
-        const avgVerb = m.count ? (m.verbSum / m.count) : 0;
-        const div = document.createElement("div");
+        var m = map[month];
+        var avgVerb = m.count ? (m.verbSum / m.count) : 0;
+        var div = document.createElement("div");
         div.className = "monthbox";
         div.innerHTML =
           "<b>" + month + "</b>: " +
@@ -641,13 +699,13 @@
 
     // ===== Letzten Tank-Eintrag löschen (Passwort Fatih) =====
     function undoLastTank() {
-      const pw = prompt("Passwort zum Löschen:");
+      var pw = prompt("Passwort zum Löschen:");
       if (pw !== "Fatih") {
         alert("Falsches Passwort.");
         return;
       }
 
-      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
       if (list.length === 0) {
         alert("Keine Tankeinträge vorhanden.");
         return;
@@ -662,12 +720,12 @@
 
     // ===== WhatsApp-Export =====
     function exportWartungText() {
-      const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      let text = "Wartung:\n";
+      var list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var text = "Wartung:\n";
 
       list.forEach(function(e) {
-        const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        const dateText = e.date ? e.date : "";
+        var cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
+        var dateText = e.date ? e.date : "";
         text += dateText + " - " + formatKm(e.km) + " km - " + e.task + " - " + cost + "\n";
       });
 
@@ -677,8 +735,8 @@
     }
 
     function exportTankText() {
-      const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      let text = "Tanken:\n";
+      var list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var text = "Tanken:\n";
 
       list.forEach(function(e) {
         text += e.d + " - " + formatKm(e.km) + " km - " +
@@ -690,9 +748,9 @@
         .catch(function() { alert("Konnte nicht in die Zwischenablage kopieren."); });
     }
 
-    // ===== Fahrzeugdaten speichern =====
+    // ===== Fahrzeugdaten speichern & laden =====
     function saveVehicle() {
-      const data = {
+      var data = {
         marke:  document.getElementById("marke").value,
         modell: document.getElementById("modell").value,
         hsn:    document.getElementById("hsn").value,
@@ -701,37 +759,66 @@
         tuev:   document.getElementById("tuev").value
       };
       localStorage.setItem("vw_vehicle", JSON.stringify(data));
-      alert("Fahrzeugdaten gespeichert.");
       renderDashboard();
+      alert("Fahrzeugdaten gespeichert.");
+    }
+
+    function loadVehicle() {
+      var existing = localStorage.getItem("vw_vehicle");
+      if (existing) {
+        var data = JSON.parse(existing);
+        document.getElementById("marke").value  = data.marke  || "Volkswagen";
+        document.getElementById("modell").value = data.modell || "Touran 2.0 TDI 110kW";
+        document.getElementById("hsn").value    = data.hsn    || "4527";
+        document.getElementById("tsn").value    = data.tsn    || "4632";
+        document.getElementById("plate").value  = data.plate  || "";
+        document.getElementById("tuev").value   = data.tuev   || "";
+      } else {
+        // Defaults
+        document.getElementById("marke").value  = "Volkswagen";
+        document.getElementById("modell").value = "Touran 2.0 TDI 110kW";
+        document.getElementById("hsn").value    = "4527";
+        document.getElementById("tsn").value    = "4632";
+      }
+    }
+
+    // Auto-Speichern bei Änderung Fahrzeugdaten
+    function setupVehicleAutosave() {
+      ["marke","modell","hsn","tsn","plate","tuev"].forEach(function(id) {
+        var el = document.getElementById(id);
+        el.addEventListener("change", saveVehicle);
+      });
     }
 
     // ===== Dashboard =====
     function renderDashboard() {
-      const tuevSpan        = document.getElementById("dashTuev");
-      const oilSpan         = document.getElementById("dashOil");
-      const nextOilSpan     = document.getElementById("dashNextOil");
-      const nextServiceSpan = document.getElementById("dashNextService");
-      const lastRepSpan     = document.getElementById("dashLastRepair");
-      const fuelSpan        = document.getElementById("dashFuel");
+      var tuevSpan        = document.getElementById("dashTuev");
+      var oilSpan         = document.getElementById("dashOil");
+      var nextOilSpan     = document.getElementById("dashNextOil");
+      var nextServiceSpan = document.getElementById("dashNextService");
+      var lastRepSpan     = document.getElementById("dashLastRepair");
+      var fuelSpan        = document.getElementById("dashFuel");
 
       // TÜV
-      let tuevVal = document.getElementById("tuev").value;
-      const vehicleRaw = localStorage.getItem("vw_vehicle");
-      if (!tuevVal && vehicleRaw) {
-        const v = JSON.parse(vehicleRaw);
-        if (v.tuev) {
-          tuevVal = v.tuev;
-          document.getElementById("tuev").value = v.tuev;
+      var tuevVal = document.getElementById("tuev").value;
+      if (!tuevVal) {
+        var vehicleRaw = localStorage.getItem("vw_vehicle");
+        if (vehicleRaw) {
+          var v = JSON.parse(vehicleRaw);
+          if (v.tuev) {
+            tuevVal = v.tuev;
+            document.getElementById("tuev").value = v.tuev;
+          }
         }
       }
 
       if (tuevVal) {
-        const d = new Date(tuevVal);
-        const today = new Date();
+        var d = new Date(tuevVal);
+        var today = new Date();
         d.setHours(0,0,0,0);
         today.setHours(0,0,0,0);
-        const diffDays = Math.round((d.getTime() - today.getTime()) / (1000*60*60*24));
-        const dateText = d.toLocaleDateString("de-DE");
+        var diffDays = Math.round((d.getTime() - today.getTime()) / (1000*60*60*24));
+        var dateText = d.toLocaleDateString("de-DE");
         if (diffDays > 0) tuevSpan.textContent = "bis " + dateText + " (" + diffDays + " Tage)";
         else if (diffDays === 0) tuevSpan.textContent = "läuft heute ab (" + dateText + ")";
         else tuevSpan.textContent = "abgelaufen am " + dateText + " (" + Math.abs(diffDays) + " Tage)";
@@ -739,21 +826,21 @@
         tuevSpan.textContent = "keine Daten";
       }
 
-      const hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
+      var hist = JSON.parse(localStorage.getItem("vw_hist") || "[]");
 
       // Letzter Ölwechsel
-      const oilEntries = hist.filter(function(e) {
-        const t = String(e.task).toLowerCase();
+      var oilEntries = hist.filter(function(e) {
+        var t = String(e.task).toLowerCase();
         return t.indexOf("ölwechsel") !== -1 || t.indexOf("oelwechsel") !== -1 || t.indexOf("öl") !== -1;
       });
       if (oilEntries.length > 0) {
-        const lastOil = oilEntries[oilEntries.length - 1];
+        var lastOil = oilEntries[oilEntries.length - 1];
         oilSpan.textContent =
           (lastOil.date || "") + " bei " + formatKm(lastOil.km) + " km";
-        const oilTask = fixedTasks.find(function(t){ return t.id === "oil"; });
-        const interval = (oilTask && typeof oilTask.interval === "number") ? oilTask.interval : 30000;
+        var oilTask = fixedTasks.find(function(t){ return t.id === "oil"; });
+        var interval = (oilTask && typeof oilTask.interval === "number") ? oilTask.interval : 30000;
         if (!isNaN(interval) && lastOil.km) {
-          const nextKm = Number(lastOil.km) + interval;
+          var nextKm = Number(lastOil.km) + interval;
           nextOilSpan.textContent = "ca. " + formatKm(nextKm) + " km";
         } else {
           nextOilSpan.textContent = "Intervall vorhanden, aber kein km-Wert";
@@ -764,19 +851,19 @@
       }
 
       // Nächste Wartungen (Top 3)
-      const upcoming = [];
+      var upcoming = [];
       fixedTasks.forEach(function(task) {
         if (typeof task.interval !== "number") return; // nur km-basierte Aufgaben
-        const tEntries = hist.filter(function(e){ return e.task === task.title; });
-        let nextKm = null;
+        var tEntries = hist.filter(function(e){ return e.task === task.title; });
+        var nextKm = null;
 
         if (tEntries.length > 0) {
-          const last = tEntries[tEntries.length - 1];
-          const lastKm = Number(last.km);
+          var last = tEntries[tEntries.length - 1];
+          var lastKm = Number(last.km);
           if (!isFinite(lastKm)) return;
           nextKm = lastKm + task.interval;
         } else {
-          const firstPreset = task.presets.find(function(v){ return typeof v === "number"; });
+          var firstPreset = task.presets.find(function(v){ return typeof v === "number"; });
           if (typeof firstPreset !== "number") return;
           nextKm = firstPreset;
         }
@@ -784,8 +871,8 @@
       });
       upcoming.sort(function(a, b){ return a.km - b.km; });
       if (upcoming.length > 0) {
-        const top3 = upcoming.slice(0, 3);
-        const text = top3
+        var top3 = upcoming.slice(0, 3);
+        var text = top3
           .map(function(e){ return e.task + " bei ca. " + formatKm(e.km) + " km"; })
           .join(" | ");
         nextServiceSpan.textContent = text;
@@ -794,9 +881,9 @@
       }
 
       // Letzte Reparaturkosten
-      const costEntries = hist.filter(function(e){ return e.cost && Number(e.cost) > 0; });
+      var costEntries = hist.filter(function(e){ return e.cost && Number(e.cost) > 0; });
       if (costEntries.length > 0) {
-        const last = costEntries[costEntries.length - 1];
+        var last = costEntries[costEntries.length - 1];
         lastRepSpan.textContent =
           (last.date || "") + " (" + Number(last.cost).toFixed(2) + " €)";
       } else {
@@ -804,9 +891,9 @@
       }
 
       // Letzter Verbrauch
-      const fuelList = JSON.parse(localStorage.getItem("vw_tank") || "[]");
+      var fuelList = JSON.parse(localStorage.getItem("vw_tank") || "[]");
       if (fuelList.length > 0) {
-        const lastTank = fuelList[fuelList.length - 1];
+        var lastTank = fuelList[fuelList.length - 1];
         fuelSpan.textContent = lastTank.verb.toFixed(2) + " L/100km";
       } else {
         fuelSpan.textContent = "keine Tankdaten";
@@ -814,6 +901,8 @@
     }
 
     // ===== Initial laden =====
+    loadVehicle();
+    setupVehicleAutosave();
     renderInspectionList();
     renderHistory();
     renderMonthly();
