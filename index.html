@@ -4,22 +4,145 @@
   <meta charset="UTF-8">
   <title>VW Touran Fahrzeugmanager (Erweitert)</title>
   <style>
-    body {font-family: Arial, sans-serif; background:#eef2f5; padding:20px;}
-    .box {background:white; padding:20px; border-radius:14px; box-shadow:0 0 10px rgba(0,0,0,0.08); margin-bottom:28px;}
-    h2 {margin-top:0; display:flex; align-items:center; gap:8px;}
-    .icon {font-size:22px;}
-    table {width:100%; border-collapse:collapse; margin-top:10px; background:white;}
-    th, td {padding:8px; border-bottom:1px solid #ddd;}
-    th {background:#fafafa;}
-    input, select {width:100%; padding:6px; border-radius:6px; border:1px solid #ccc; box-sizing:border-box;}
-    button {padding:10px 16px; border:none; border-radius:6px; background:#0078ff; color:white; cursor:pointer; margin-top:10px;}
-    button:hover {background:#005fcc;}
-    .smallbtn {background:#444; padding:6px 10px; font-size:13px; color:white;}
-    .task-block {margin-bottom:18px; padding:15px; background:#f9f9f9; border-radius:10px; border:1px solid #ddd;}
-    .entry-row {display:flex; gap:10px; margin-bottom:6px;}
-    .entry-row input {flex:1;}
-    .monthbox {padding:10px; background:#f5f5f5; border-radius:10px; margin-top:10px;}
-    ul {margin:0 0 0 18px; padding:0;}
+    :root {
+      --vw-blue: #004b87;
+      --vw-blue-light: #e3f2fd;
+      --vw-grey-bg: #eef2f5;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--vw-grey-bg);
+      padding: 20px;
+    }
+
+    .box {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.08);
+      margin-bottom: 28px;
+      border-top: 4px solid var(--vw-blue);
+    }
+
+    h2 {
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--vw-blue);
+    }
+
+    .icon {
+      font-size: 22px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: #ffffff;
+    }
+
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background: #f5f7fa;
+      color: #333;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      background: var(--vw-blue);
+      color: white;
+      cursor: pointer;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: #003764;
+    }
+
+    .smallbtn {
+      background: #444;
+      padding: 6px 10px;
+      font-size: 13px;
+      color: white;
+    }
+
+    .task-block {
+      margin-bottom: 18px;
+      padding: 15px;
+      background: var(--vw-blue-light);
+      border-radius: 10px;
+      border: 1px solid #c5d7e8;
+    }
+
+    .task-block h3 {
+      margin: 0 0 8px 0;
+      color: #003764;
+      font-size: 16px;
+    }
+
+    .task-block small {
+      font-weight: normal;
+      color: #555;
+      font-size: 12px;
+    }
+
+    /* Mobile-freundliche Darstellung: alles untereinander */
+    .entry-row {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .entry-row input[type="text"],
+    .entry-row input[type="number"],
+    .entry-row input[type="date"] {
+      width: 100%;
+    }
+
+    .entry-row .check-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .entry-row .check-wrap label {
+      font-size: 13px;
+    }
+
+    .monthbox {
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+    }
+
+    ul {
+      margin: 0 0 0 18px;
+      padding: 0;
+    }
   </style>
 </head>
 <body>
@@ -162,7 +285,10 @@
           row.innerHTML = `
             <input id="km_${id}" value="${v}" disabled>
             <input id="dt_${id}" placeholder="Datum">
-            <input type="checkbox" id="chk_${id}" onchange="finishInspection('${task.id}', ${v}, '${id}')">
+            <div class="check-wrap">
+              <input type="checkbox" id="chk_${id}" onchange="finishInspection('${task.id}', ${v}, '${id}')">
+              <label for="chk_${id}">erledigt</label>
+            </div>
           `;
           div.appendChild(row);
         });
@@ -324,11 +450,13 @@
     //--------------------------------------------------
     function exportWartungText() {
       const list = JSON.parse(localStorage.getItem("vw_hist") || "[]");
-      let text = "Wartung:\n";
+      let text = "Wartung:
+";
 
       list.forEach(e => {
         const cost = e.cost ? Number(e.cost).toFixed(2) + " €" : "";
-        text += `${e.date} - ${e.km} km - ${e.task} - ${cost}\n`;
+        text += `${e.date} - ${e.km} km - ${e.task} - ${cost}
+`;
       });
 
       navigator.clipboard.writeText(text)
@@ -338,10 +466,12 @@
 
     function exportTankText() {
       const list = JSON.parse(localStorage.getItem("vw_tank") || "[]");
-      let text = "Tanken:\n";
+      let text = "Tanken:
+";
 
       list.forEach(e => {
-        text += `${e.d} - ${e.km} km - ${e.l.toFixed(2)} L - ${e.cost.toFixed(2)} €\n`;
+        text += `${e.d} - ${e.km} km - ${e.l.toFixed(2)} L - ${e.cost.toFixed(2)} €
+`;
       });
 
       navigator.clipboard.writeText(text)
@@ -350,7 +480,7 @@
     }
 
     //--------------------------------------------------
-    // Fahrzeugdaten speichern (einfach in localStorage)
+    // Fahrzeugdaten speichern (localStorage)
     //--------------------------------------------------
     function saveVehicle() {
       const data = {
